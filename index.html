@@ -1,0 +1,2962 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotify Top 50 音訊特徵工程與熱門度多元回歸分析儀表板</title>
+    <meta name="description" content="Spotify Top 50 歌曲熱門度預測與特徵工程：全面比較 ANOVA F-test、RFE 遞迴特徵消除與 Lasso 嵌入法，探討特徵數量與偏差-變異權衡。">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-base: #07090e;
+            --bg-surface: rgba(15, 23, 42, 0.75);
+            --bg-card: rgba(26, 35, 54, 0.65);
+            --bg-card-hover: rgba(38, 51, 77, 0.8);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-focus: rgba(29, 185, 84, 0.5);
+
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+
+            --spotify-green: #1db954;
+            --spotify-green-light: #1ed760;
+            --spotify-glow: rgba(29, 185, 84, 0.3);
+
+            --cyan-accent: #06b6d4;
+            --cyan-glow: rgba(6, 182, 212, 0.25);
+            --purple-accent: #a855f7;
+            --purple-glow: rgba(168, 85, 247, 0.25);
+            --amber-accent: #f59e0b;
+            --rose-accent: #f43f5e;
+            --emerald-accent: #10b981;
+
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 20px;
+            --radius-xl: 28px;
+            --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(29, 185, 84, 0.12) 0%, transparent 45%),
+                radial-gradient(circle at 85% 30%, rgba(6, 182, 212, 0.10) 0%, transparent 40%),
+                radial-gradient(circle at 50% 85%, rgba(168, 85, 247, 0.09) 0%, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        code, pre, .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Navbar */
+        .navbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(20px);
+            background: rgba(7, 9, 14, 0.85);
+            border-bottom: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            text-decoration: none;
+            color: var(--text-main);
+        }
+
+        .nav-logo {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, var(--spotify-green), var(--cyan-accent));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px var(--spotify-glow);
+        }
+
+        .nav-logo svg {
+            width: 22px;
+            height: 22px;
+            fill: #000;
+        }
+
+        .brand-text h1 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            background: linear-gradient(to right, #fff, var(--spotify-green-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .brand-text span {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: block;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            list-style: none;
+        }
+
+        .nav-link {
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: var(--transition);
+            padding: 0.4rem 0.8rem;
+            border-radius: var(--radius-sm);
+        }
+
+        .nav-link:hover {
+            color: var(--spotify-green-light);
+            background: rgba(29, 185, 84, 0.1);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1360px;
+            margin: 0 auto;
+            padding: 2.5rem 1.5rem 4rem;
+        }
+
+        /* Hero Header */
+        .hero {
+            text-align: center;
+            margin-bottom: 3.5rem;
+            position: relative;
+        }
+
+        .badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(29, 185, 84, 0.15);
+            border: 1px solid rgba(29, 185, 84, 0.35);
+            color: var(--spotify-green-light);
+            padding: 0.4rem 1.1rem;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1.2rem;
+            box-shadow: 0 0 15px rgba(29, 185, 84, 0.2);
+        }
+
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--spotify-green);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--spotify-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.8; }
+        }
+
+        .hero h2 {
+            font-size: 2.75rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.2;
+            margin-bottom: 1.2rem;
+            background: linear-gradient(135deg, #ffffff 30%, #e2e8f0 70%, var(--spotify-green-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            max-width: 860px;
+            margin: 0 auto 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 1.2rem;
+            margin-top: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(14px);
+            border: 1px solid var(--border-color);
+            padding: 1.3rem;
+            border-radius: var(--radius-md);
+            text-align: left;
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            border-color: rgba(29, 185, 84, 0.3);
+            box-shadow: 0 12px 28px -10px var(--spotify-glow);
+        }
+
+        .stat-label {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.35rem;
+        }
+
+        .stat-val {
+            font-size: 1.7rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.02em;
+        }
+
+        .stat-desc {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-top: 0.25rem;
+        }
+
+        /* Section Block */
+        .section-block {
+            background: var(--bg-surface);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-xl);
+            padding: 2.2rem;
+            margin-bottom: 3rem;
+            box-shadow: 0 20px 45px -15px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.2rem;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+        }
+
+        .section-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+        }
+
+        .icon-green { background: rgba(29, 185, 84, 0.18); color: var(--spotify-green-light); border: 1px solid rgba(29, 185, 84, 0.3); }
+        .icon-cyan { background: rgba(6, 182, 212, 0.18); color: var(--cyan-accent); border: 1px solid rgba(6, 182, 212, 0.3); }
+        .icon-purple { background: rgba(168, 85, 247, 0.18); color: var(--purple-accent); border: 1px solid rgba(168, 85, 247, 0.3); }
+        .icon-amber { background: rgba(245, 158, 11, 0.18); color: var(--amber-accent); border: 1px solid rgba(245, 158, 11, 0.3); }
+
+        .section-title h3 {
+            font-size: 1.55rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .section-title p {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+        }
+
+        /* Buttons & Toggles */
+        .btn-group {
+            display: inline-flex;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 4px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            gap: 4px;
+        }
+
+        .btn-toggle {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.45rem 1rem;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-toggle.active {
+            background: var(--spotify-green);
+            color: #000;
+            box-shadow: 0 0 14px var(--spotify-glow);
+        }
+
+        /* Chart container */
+        .chart-box {
+            position: relative;
+            height: 380px;
+            width: 100%;
+            margin-bottom: 2rem;
+            background: rgba(11, 16, 26, 0.65);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            padding: 1.2rem;
+        }
+
+        .chart-img-view {
+            display: none;
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .chart-img-view img {
+            max-width: 100%;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+        }
+
+        /* Table Styling */
+        .table-responsive {
+            overflow-x: auto;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            background: rgba(11, 16, 26, 0.7);
+            margin-bottom: 1.8rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.92rem;
+            text-align: left;
+        }
+
+        th {
+            background: rgba(18, 26, 42, 0.95);
+            padding: 1rem 1.2rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 0.95rem 1.2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            color: var(--text-main);
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        tr.highlight-sweet td {
+            background: rgba(29, 185, 84, 0.12) !important;
+            border-left: 3px solid var(--spotify-green);
+        }
+
+        tr.highlight-rfe td {
+            background: rgba(6, 182, 212, 0.1) !important;
+            border-left: 3px solid var(--cyan-accent);
+        }
+
+        .tag-pill {
+            display: inline-block;
+            padding: 0.25rem 0.65rem;
+            border-radius: 6px;
+            font-size: 0.76rem;
+            font-weight: 600;
+        }
+
+        .tag-sweet { background: rgba(29, 185, 84, 0.2); color: var(--spotify-green-light); border: 1px solid rgba(29, 185, 84, 0.4); }
+        .tag-rfe { background: rgba(6, 182, 212, 0.2); color: var(--cyan-accent); border: 1px solid rgba(6, 182, 212, 0.4); }
+        .tag-warn { background: rgba(245, 158, 11, 0.2); color: var(--amber-accent); border: 1px solid rgba(245, 158, 11, 0.4); }
+        .tag-bad { background: rgba(244, 63, 94, 0.2); color: var(--rose-accent); border: 1px solid rgba(244, 63, 94, 0.4); }
+
+        /* Analysis Callout Cards */
+        .callout-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+
+        .callout-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .callout-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+        }
+
+        .card-green::before { background: var(--spotify-green); }
+        .card-cyan::before { background: var(--cyan-accent); }
+        .card-purple::before { background: var(--purple-accent); }
+        .card-amber::before { background: var(--amber-accent); }
+
+        .callout-card h4 {
+            font-size: 1.15rem;
+            color: #fff;
+            margin-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .callout-card p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 0.6rem;
+            line-height: 1.55;
+        }
+
+        /* SECTION 2: Predictor Layout */
+        .predictor-grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        @media (max-width: 992px) {
+            .predictor-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .controls-card {
+            background: rgba(11, 16, 26, 0.7);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 1.8rem;
+        }
+
+        .model-select-tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .model-tab {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 0.5rem 0.9rem;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 0.84rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .model-tab:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .model-tab.active {
+            background: var(--spotify-green);
+            color: #000;
+            border-color: var(--spotify-green);
+            box-shadow: 0 0 15px var(--spotify-glow);
+        }
+
+        .preset-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .preset-btn {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.35rem 0.8rem;
+            border-radius: 100px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .preset-btn:hover {
+            border-color: var(--spotify-green);
+            color: var(--spotify-green-light);
+            background: rgba(29, 185, 84, 0.1);
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .slider-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .slider-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .slider-label {
+            font-size: 0.88rem;
+            font-weight: 600;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .slider-val {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--spotify-green-light);
+            background: rgba(29, 185, 84, 0.12);
+            padding: 0.15rem 0.55rem;
+            border-radius: 6px;
+            border: 1px solid rgba(29, 185, 84, 0.25);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 5px;
+            background: #1e293b;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--spotify-green-light);
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--spotify-glow);
+            transition: transform 0.15s;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.25);
+        }
+
+        .slider-hint {
+            font-size: 0.74rem;
+            color: var(--text-dim);
+        }
+
+        /* Predictor Results Card */
+        .results-card {
+            background: linear-gradient(145deg, rgba(20, 28, 45, 0.85), rgba(11, 16, 26, 0.95));
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.6);
+        }
+
+        .gauge-container {
+            position: relative;
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 1.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gauge-circle {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: conic-gradient(var(--spotify-green) 0deg, var(--cyan-accent) 260deg, #1e293b 260deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 14px;
+            box-shadow: 0 0 30px rgba(29, 185, 84, 0.25);
+            transition: background 0.4s ease;
+        }
+
+        .gauge-inner {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: #0b101a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .gauge-score {
+            font-size: 3.2rem;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            color: #fff;
+            line-height: 1;
+        }
+
+        .gauge-max {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+
+        .tier-badge {
+            display: inline-block;
+            font-size: 0.95rem;
+            font-weight: 700;
+            padding: 0.45rem 1.2rem;
+            border-radius: 100px;
+            margin-bottom: 1.2rem;
+        }
+
+        .tier-viral { background: rgba(29, 185, 84, 0.2); color: var(--spotify-green-light); border: 1px solid var(--spotify-green); box-shadow: 0 0 15px var(--spotify-glow); }
+        .tier-high { background: rgba(6, 182, 212, 0.2); color: var(--cyan-accent); border: 1px solid var(--cyan-accent); }
+        .tier-mid { background: rgba(245, 158, 11, 0.2); color: var(--amber-accent); border: 1px solid var(--amber-accent); }
+        .tier-niche { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border: 1px solid #64748b; }
+
+        .formula-box {
+            background: rgba(7, 10, 16, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 0.85rem 1rem;
+            text-align: left;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            word-break: break-all;
+        }
+
+        .radar-box {
+            position: relative;
+            height: 230px;
+            margin-top: 1rem;
+        }
+
+        /* SECTION 3: Dropdown Methods */
+        .method-selector-bar {
+            background: rgba(11, 16, 26, 0.7);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 1.2rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .dropdown-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+            min-width: 280px;
+        }
+
+        .custom-select {
+            flex: 1;
+            background: #0f172a;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 0.75rem 1.2rem;
+            border-radius: var(--radius-sm);
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            outline: none;
+            transition: var(--transition);
+        }
+
+        .custom-select:focus {
+            border-color: var(--spotify-green);
+            box-shadow: 0 0 15px var(--spotify-glow);
+        }
+
+        .method-panel {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .method-panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* SECTION 4: Song Explorer */
+        .filter-bar {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 250px;
+            background: rgba(11, 16, 26, 0.8);
+            border: 1px solid var(--border-color);
+            padding: 0.65rem 1rem;
+            border-radius: var(--radius-sm);
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: var(--spotify-green);
+        }
+
+        .genre-select {
+            background: rgba(11, 16, 26, 0.8);
+            border: 1px solid var(--border-color);
+            padding: 0.65rem 1rem;
+            border-radius: var(--radius-sm);
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.9rem;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .btn-load {
+            background: rgba(29, 185, 84, 0.15);
+            color: var(--spotify-green-light);
+            border: 1px solid rgba(29, 185, 84, 0.35);
+            padding: 0.25rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-load:hover {
+            background: var(--spotify-green);
+            color: #000;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--border-color);
+            padding: 3rem 2rem;
+            text-align: center;
+            color: var(--text-dim);
+            font-size: 0.88rem;
+        }
+
+        footer a {
+            color: var(--spotify-green-light);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <a href="#" class="nav-brand">
+            <div class="nav-logo">
+                <svg viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.503 17.306c-.218.358-.684.472-1.042.254-2.858-1.747-6.457-2.143-10.697-1.173-.409.094-.818-.163-.911-.571-.094-.409.163-.818.571-.911 4.643-1.06 8.626-.615 11.825 1.341.358.218.472.684.254 1.06zm1.47-3.267c-.275.446-.86.588-1.306.313-3.272-2.012-8.261-2.595-12.133-1.419-.502.153-1.036-.134-1.189-.636-.153-.502.134-1.036.636-1.189 4.417-1.341 9.919-.693 13.679 1.625.446.275.588.86.313 1.306zm.126-3.41c-3.924-2.33-10.388-2.544-14.135-1.406-.601.183-1.241-.161-1.424-.762-.183-.601.161-1.241.762-1.424 4.306-1.307 11.439-1.054 15.961 1.63.541.321.716 1.025.395 1.566-.321.541-1.025.716-1.566.395z"/></svg>
+            </div>
+            <div class="brand-text">
+                <h1>Spotify Top 50 ML Analysis</h1>
+                <span>人工智慧與資訊安全課程專案 (Hw2 L05)</span>
+            </div>
+        </a>
+        <ul class="nav-links">
+            <li><a href="#sweet-spot" class="nav-link">特徵數量評估</a></li>
+            <li><a href="#predictor" class="nav-link">熱門度預測器</a></li>
+            <li><a href="#methods" class="nav-link">特徵篩選方法</a></li>
+            <li><a href="#songs" class="nav-link">50 首榜單歌曲</a></li>
+        </ul>
+    </nav>
+
+    <div class="container">
+
+        <!-- Hero Header -->
+        <header class="hero">
+            <div class="badge-pill">
+                <span class="pulse-dot"></span>
+                <span>多元線性回歸與音訊特徵篩選工程</span>
+            </div>
+            <h2>Spotify Top 50 音訊特徵工程與熱門度預測</h2>
+            <p>本專案實作並嚴格評估 <strong>ANOVA F-test (Filter)</strong>、<strong>RFE (Wrapper)</strong> 與 <strong>Lasso (Embedded)</strong> 三大特徵篩選技術，探索在 50 首全球熱門歌曲中，哪些聲學指標真正主導了歌曲熱門度，並深入解析偏差-變異權衡（Bias-Variance Tradeoff）。</p>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">資料集樣本規模</div>
+                    <div class="stat-val">50 <span style="font-size: 1rem; color: var(--text-muted);">首歌曲</span></div>
+                    <div class="stat-desc">全球 2019 Top 50 Spotify 串流榜</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">音訊候選特徵</div>
+                    <div class="stat-val">9 <span style="font-size: 1rem; color: var(--text-muted);">維度</span></div>
+                    <div class="stat-desc">BPM、能量、舞曲度、正向度等</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">最佳模型特徵數 (Sweet Spot)</div>
+                    <div class="stat-val" style="color: var(--spotify-green-light);">2 <span style="font-size: 1rem; color: var(--text-muted);">個特徵</span></div>
+                    <div class="stat-desc">最低測試集 RMSE: <strong>6.4689</strong></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">RFE 選出 Top 3 特徵</div>
+                    <div class="stat-val" style="font-size: 1.15rem; color: var(--cyan-accent); padding-top: 6px;">Valence, Speech, Live</div>
+                    <div class="stat-desc">兼顧情緒傾向與語音節奏動態</div>
+                </div>
+            </div>
+        </header>
+
+        <!-- ==========================================
+             SECTION 1: 特徵數量評估與最佳化 (Sweet Spot)
+             ========================================== -->
+        <section id="sweet-spot" class="section-block">
+            <div class="section-header">
+                <div class="section-title">
+                    <div class="section-icon icon-green">📈</div>
+                    <div>
+                        <h3>特徵數量評估與最佳化 (Sweet Spot 分析)</h3>
+                        <p>觀察測試集（Test Set 20%）隨特徵數量從 1 到 9 逐步加入時的 RMSE 與 R² 變化趨勢</p>
+                    </div>
+                </div>
+                <div class="btn-group">
+                    <button id="btnViewChart" class="btn-toggle active" onclick="switchSweetView('chart')">互動式圖表</button>
+                    <button id="btnViewImage" class="btn-toggle" onclick="switchSweetView('image')">Matplotlib 原生 PNG</button>
+                    <button id="btnViewTableImg" class="btn-toggle" onclick="switchSweetView('tableImg')">成果表格圖</button>
+                </div>
+            </div>
+
+            <!-- View 1: Chart.js Canvas -->
+            <div id="sweetChartContainer" class="chart-box">
+                <canvas id="sweetSpotChart"></canvas>
+            </div>
+
+            <!-- View 2: Matplotlib Image features_performance.png -->
+            <div id="sweetImageContainer" class="chart-img-view">
+                <img src="features_performance.png" alt="features_performance.png: RMSE & R-squared by Number of Features">
+                <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0.6rem;">原生 Matplotlib 產出成果：features_performance.png (300 DPI)</p>
+            </div>
+
+            <!-- View 3: Matplotlib Image features_table.png -->
+            <div id="sweetTableImgContainer" class="chart-img-view">
+                <img src="features_table.png" alt="features_table.png: Table of Results">
+                <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0.6rem;">原生 Matplotlib 表格成果：features_table.png (300 DPI)</p>
+            </div>
+
+            <!-- Table of Results -->
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 10%;">特徵數 (k)</th>
+                            <th style="width: 48%;">選取特徵組合 (依 RFE 排名由先至後)</th>
+                            <th style="width: 14%; text-align: right;">測試集 RMSE</th>
+                            <th style="width: 14%; text-align: right;">測試集 R²</th>
+                            <th style="width: 14%; text-align: center;">模型狀態 / 說明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>1</strong></td>
+                            <td><code>[Valence.]</code></td>
+                            <td style="text-align: right;" class="mono">6.651936</td>
+                            <td style="text-align: right;" class="mono">-0.137780</td>
+                            <td style="text-align: center;"><span class="tag-pill tag-warn">單一情緒特徵</span></td>
+                        </tr>
+                        <tr class="highlight-sweet">
+                            <td><strong>2</strong></td>
+                            <td><code>[Valence., Speechiness.]</code></td>
+                            <td style="text-align: right; font-weight: 700; color: var(--spotify-green-light);" class="mono">6.468910</td>
+                            <td style="text-align: right; font-weight: 700; color: var(--spotify-green-light);" class="mono">-0.076030</td>
+                            <td style="text-align: center;"><span class="tag-pill tag-sweet">🌟 最優 Sweet Spot</span></td>
+                        </tr>
+                        <tr class="highlight-rfe">
+                            <td><strong>3</strong></td>
+                            <td><code>[Valence., Speechiness., Liveness]</code></td>
+                            <td style="text-align: right;" class="mono">6.489122</td>
+                            <td style="text-align: right;" class="mono">-0.082764</td>
+                            <td style="text-align: center;"><span class="tag-pill tag-rfe">🎯 RFE Top 3 推薦</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>4</strong></td>
+                            <td><code>[... + Length.]</code> (歌曲長度)</td>
+                            <td style="text-align: right;" class="mono">6.493394</td>
+                            <td style="text-align: right;" class="mono">-0.084190</td>
+                            <td style="text-align: center;"><span class="tag-pill">平穩持平</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>5</strong></td>
+                            <td><code>[... + Loudness..dB..]</code> (音量響度)</td>
+                            <td style="text-align: right;" class="mono">6.505599</td>
+                            <td style="text-align: right;" class="mono">-0.088270</td>
+                            <td style="text-align: center;"><span class="tag-pill">誤差微幅上升</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>6</strong></td>
+                            <td><code>[... + Beats.Per.Minute]</code> (節奏 BPM)</td>
+                            <td style="text-align: right;" class="mono">6.486942</td>
+                            <td style="text-align: right;" class="mono">-0.082037</td>
+                            <td style="text-align: center;"><span class="tag-pill">無明顯改善</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>7</strong></td>
+                            <td><code>[... + Acousticness..]</code> (原聲度)</td>
+                            <td style="text-align: right;" class="mono">6.969816</td>
+                            <td style="text-align: right;" class="mono">-0.249121</td>
+                            <td style="text-align: center;"><span class="tag-pill tag-warn">開始過擬合</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>8</strong></td>
+                            <td><code>[... + Energy]</code> (能量強度)</td>
+                            <td style="text-align: right;" class="mono">7.317351</td>
+                            <td style="text-align: right;" class="mono">-0.376797</td>
+                            <td style="text-align: center;"><span class="tag-pill tag-bad">嚴重雜訊干擾</span></td>
+                        </tr>
+                        <tr>
+                            <td><strong>9</strong></td>
+                            <td><code>[... + Danceability]</code> (全部 9 特徵)</td>
+                            <td style="text-align: right;" class="mono">7.336715</td>
+                            <td style="text-align: right;" class="mono">-0.384093</td>
+                            <td style="text-align: center;"><span class="tag-pill tag-bad">最差泛化表現</span></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Deep Analysis Cards -->
+            <div class="callout-grid">
+                <div class="callout-card card-green">
+                    <h4>🌟 最適特徵數量 (Sweet Spot: k=2~3)</h4>
+                    <p>當特徵數為 <strong>2</strong> (Valence + Speechiness) 時，測試集 RMSE 達到全場最低值 <strong>6.4689</strong>。這說明對於全球熱門歌曲而言，<strong>「情緒調性（偏憂鬱沉靜）」</strong>與<strong>「語音口白比例（饒舌或清晰人聲）」</strong>是預測熱門度最關鍵的兩大資訊來源，特徵多不代表更好！</p>
+                </div>
+                <div class="callout-card card-amber">
+                    <h4>⚠️ 為什麼加入 7~9 個特徵後誤差暴增？(過擬合)</h4>
+                    <p>在 Spotify Top 50 資料集中，50 首歌曲都已經是全球頂尖熱播曲，特徵如 Energy (能量)、Danceability (跳舞度)、Loudness (響度) 在所有歌曲中都普遍偏高，<strong>與熱門度缺乏線性區分能力</strong>。強行將這些弱相關特徵納入模型，會讓模型參數強記訓練雜訊，導致<strong>測試集 RMSE 飆升至 7.34</strong>！</p>
+                </div>
+                <div class="callout-card card-purple">
+                    <h4>🔬 核心深度：為什麼測試集 R² 會出現負值？</h4>
+                    <p>在機器學習定義中，$R^2 = 1 - \frac{\sum (y - \hat{y})^2}{\sum (y - \bar{y}_{test})^2}$。當測試樣本數較小 ($N=10$) 且測試集均值與訓練集分佈有些微偏移時，若模型因為過多無效特徵產生了高方差（High Variance），其在測試集上的預測殘差平方和會大於「直接用測試集均值猜測」的總離差，因而使 $R^2 < 0$。<strong>這正是特徵篩選（降低維度、避免模型過度複雜）在實務上至關重要的最強證明！</strong></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             SECTION 2: 即時 Spotify 熱門度預測器
+             ========================================== -->
+        <section id="predictor" class="section-block">
+            <div class="section-header">
+                <div class="section-title">
+                    <div class="section-icon icon-cyan">🎧</div>
+                    <div>
+                        <h3>Spotify 即時熱門度預測器 (Live Popularity Predictor)</h3>
+                        <p>調整音訊聲學特徵滑桿，即時利用多元線性迴歸模型計算 Popularity 指標與音樂風向雷達圖</p>
+                    </div>
+                </div>
+                <div class="btn-group">
+                    <button id="btnViewPredictor" class="btn-toggle active" onclick="switchPredictorView('calc')">預測計算機</button>
+                    <button id="btnViewScatter" class="btn-toggle" onclick="switchPredictorView('scatter')">實際 vs 預測診斷圖</button>
+                </div>
+            </div>
+
+            <!-- View A: Predictor Calculator -->
+            <div id="predictorCalcBox" class="predictor-grid">
+                <!-- Left: Controls -->
+                <div class="controls-card">
+                    <div style="margin-bottom: 0.8rem; font-size: 0.82rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">選擇預測所使用的回歸模型</div>
+                    <div class="model-select-tabs">
+                        <button class="model-tab active" onclick="selectModel('sweet')">🌟 雙特徵最佳模型 (Sweet Spot)</button>
+                        <button class="model-tab" onclick="selectModel('rfe')">🎯 RFE Top 3 模型 (推薦)</button>
+                        <button class="model-tab" onclick="selectModel('full')">📊 全 9 特徵完整回歸</button>
+                    </div>
+
+                    <div style="margin-bottom: 0.6rem; font-size: 0.82rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">快速帶入 2019 全球熱門榜單名曲特徵</div>
+                    <div class="preset-bar">
+                        <button class="preset-btn" onclick="loadPreset('badguy')">🟢 Billie Eilish - bad guy</button>
+                        <button class="preset-btn" onclick="loadPreset('senorita')">🔴 Shawn Mendes - Señorita</button>
+                        <button class="preset-btn" onclick="loadPreset('7rings')">🟣 Ariana Grande - 7 rings</button>
+                        <button class="preset-btn" onclick="loadPreset('oldtown')">🟠 Lil Nas X - Old Town Road</button>
+                    </div>
+
+                    <div class="slider-group">
+                        <div class="slider-item">
+                            <div class="slider-top">
+                                <span class="slider-label">🎭 音樂正向度 (Valence) <span style="font-size: 0.72rem; color: var(--rose-accent);">[負相關: -0.0618]</span></span>
+                                <span id="val_valence" class="slider-val">55</span>
+                            </div>
+                            <input type="range" id="input_valence" min="10" max="95" value="55" oninput="updatePrediction()">
+                            <span class="slider-hint">數值越高代表越歡樂陽光，越低代表悲傷、憂鬱、深沉 (Top 50 中憂鬱感歌曲反而較受歡迎)</span>
+                        </div>
+
+                        <div class="slider-item">
+                            <div class="slider-top">
+                                <span class="slider-label">🎙️ 說話/饒舌度 (Speechiness) <span style="font-size: 0.72rem; color: var(--spotify-green-light);">[正相關: +0.0958]</span></span>
+                                <span id="val_speech" class="slider-val">12</span>
+                            </div>
+                            <input type="range" id="input_speech" min="3" max="46" value="12" oninput="updatePrediction()">
+                            <span class="slider-hint">歌曲中人聲說話與口白比例，數值高通常代表饒舌/Hip-Hop 元素豐富</span>
+                        </div>
+
+                        <div class="slider-item">
+                            <div class="slider-top">
+                                <span class="slider-label">⚡ 現場活力感 (Liveness) <span style="font-size: 0.72rem; color: var(--cyan-accent);">[正相關: +0.0514]</span></span>
+                                <span id="val_liveness" class="slider-val">15</span>
+                            </div>
+                            <input type="range" id="input_liveness" min="5" max="58" value="15" oninput="updatePrediction()">
+                            <span class="slider-hint">偵測觀眾聲音與現場表演臨場感，高分代表有 live 演出氛圍</span>
+                        </div>
+
+                        <div class="slider-item">
+                            <div class="slider-top">
+                                <span class="slider-label">🥁 節奏速度 (Beats Per Minute)</span>
+                                <span id="val_bpm" class="slider-val">120</span>
+                            </div>
+                            <input type="range" id="input_bpm" min="85" max="190" value="120" oninput="updatePrediction()">
+                            <span class="slider-hint">歌曲每分鐘節拍數 (BPM)，衡量歌曲速度律動</span>
+                        </div>
+
+                        <div class="slider-item">
+                            <div class="slider-top">
+                                <span class="slider-label">🔥 音樂能量感 (Energy)</span>
+                                <span id="val_energy" class="slider-val">64</span>
+                            </div>
+                            <input type="range" id="input_energy" min="32" max="88" value="64" oninput="updatePrediction()">
+                            <span class="slider-hint">衡量感知強度、活力與喧鬧程度</span>
+                        </div>
+
+                        <div class="slider-item">
+                            <div class="slider-top">
+                                <span class="slider-label">💃 適合跳舞度 (Danceability)</span>
+                                <span id="val_dance" class="slider-val">71</span>
+                            </div>
+                            <input type="range" id="input_dance" min="29" max="90" value="71" oninput="updatePrediction()">
+                            <span class="slider-hint">綜合節奏、穩定度與節拍強度的舞動適合度</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Prediction Output -->
+                <div class="results-card">
+                    <div style="font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 1.2rem;">預估熱門度評分 (Popularity)</div>
+                    
+                    <div class="gauge-container">
+                        <div id="gaugeCircle" class="gauge-circle">
+                            <div class="gauge-inner">
+                                <div id="predictedScoreText" class="gauge-score">87.5</div>
+                                <div class="gauge-max">/ 100 分</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="popularityTierBadge" class="tier-badge tier-high">🔥 全球高頻輪播金曲 (High Rotation)</div>
+
+                    <!-- Regression Formula Display -->
+                    <div id="formulaText" class="formula-box mono">
+                        Popularity = 89.74 - (0.0615 × Valence) + (0.0894 × Speechiness)
+                    </div>
+
+                    <!-- Radar Chart -->
+                    <div style="text-align: left; font-size: 0.85rem; color: var(--text-muted); font-weight: 600; margin-top: 1.2rem;">🎵 音訊風格特徵雷達圖</div>
+                    <div class="radar-box">
+                        <canvas id="audioRadarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- View B: Scatter plot actual_vs_predicted.png -->
+            <div id="predictorScatterBox" class="chart-img-view">
+                <img src="actual_vs_predicted.png" alt="actual_vs_predicted.png: Actual vs Predicted Popularity">
+                <p style="font-size: 0.85rem; color: var(--text-dim); margin-top: 0.8rem;">多元線性迴歸診斷散佈圖：實際熱門度 (Actual) vs 預測熱門度 (Predicted)，紅色虛線為 y=x 完美擬合基準線</p>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             SECTION 3: 三大特徵篩選技術深度剖析 (下拉式選單)
+             ========================================== -->
+        <section id="methods" class="section-block">
+            <div class="section-header">
+                <div class="section-title">
+                    <div class="section-icon icon-purple">🔬</div>
+                    <div>
+                        <h3>三大特徵篩選技術深度比較 (專屬下拉式選單)</h3>
+                        <p>切換查看 Filter、Wrapper 與 Embedded 三種方法在 Spotify 音訊特徵上的篩選結果與理論機制</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dropdown selector bar -->
+            <div class="method-selector-bar">
+                <div class="dropdown-wrapper">
+                    <label for="methodSelect" style="font-weight: 600; font-size: 0.95rem; color: #fff;">請選擇特徵篩選方法：</label>
+                    <select id="methodSelect" class="custom-select" onchange="changeMethod(this.value)">
+                        <option value="anova">🔬 1. ANOVA F-value (Filter Method 過濾法)</option>
+                        <option value="rfe">🔄 2. RFE 遞迴特徵消除 (Wrapper Method 包裝法)</option>
+                        <option value="lasso">🎯 3. Lasso 正則化 (Embedded Method 嵌入法)</option>
+                    </select>
+                </div>
+                <div style="font-size: 0.85rem; color: var(--text-muted);">
+                    目前展示模式：<span id="currentMethodBadge" style="color: var(--spotify-green-light); font-weight: 700;">ANOVA F-value</span>
+                </div>
+            </div>
+
+            <!-- Panel 1: ANOVA F-test -->
+            <div id="panel-anova" class="method-panel active">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;">
+                    <div>
+                        <h4 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.8rem;">1. ANOVA F-value 特徵重要性排序</h4>
+                        <p style="color: var(--text-muted); font-size: 0.92rem; margin-bottom: 1.2rem;">
+                            <strong>過濾法 (Filter Method)</strong> 透過計算單變量統計指標（ANOVA F-score）來量化特徵與目標變數（Popularity）之間的線性關聯性。計算速度極快且獨立於回歸模型本身。
+                        </p>
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>排序</th>
+                                        <th>特徵名稱</th>
+                                        <th style="text-align: right;">F-Score</th>
+                                        <th style="text-align: right;">p-value</th>
+                                        <th style="text-align: center;">統計顯著性</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="background: rgba(29, 185, 84, 0.12);">
+                                        <td><strong>1</strong></td>
+                                        <td><code>Valence.</code></td>
+                                        <td style="text-align: right;" class="mono">5.3907</td>
+                                        <td style="text-align: right;" class="mono">0.0245</td>
+                                        <td style="text-align: center;"><span class="tag-pill tag-sweet">p < 0.05 (*) 顯著</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>2</strong></td>
+                                        <td><code>Speechiness.</code></td>
+                                        <td style="text-align: right;" class="mono">2.8964</td>
+                                        <td style="text-align: right;" class="mono">0.0952</td>
+                                        <td style="text-align: center;"><span class="tag-pill tag-rfe">p < 0.10 邊際顯著</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>3</strong></td>
+                                        <td><code>Beats.Per.Minute</code></td>
+                                        <td style="text-align: right;" class="mono">1.9196</td>
+                                        <td style="text-align: right;" class="mono">0.1723</td>
+                                        <td style="text-align: center;"><span class="tag-pill">p > 0.10</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>4</strong></td>
+                                        <td><code>Liveness</code></td>
+                                        <td style="text-align: right;" class="mono">0.4148</td>
+                                        <td style="text-align: right;" class="mono">0.5226</td>
+                                        <td style="text-align: center;"><span class="tag-pill">無統計顯著性</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>5</strong></td>
+                                        <td><code>Length.</code></td>
+                                        <td style="text-align: right;" class="mono">0.3715</td>
+                                        <td style="text-align: right;" class="mono">0.5451</td>
+                                        <td style="text-align: center;"><span class="tag-pill">無統計顯著性</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>6</strong></td>
+                                        <td><code>Energy</code></td>
+                                        <td style="text-align: right;" class="mono">0.3115</td>
+                                        <td style="text-align: right;" class="mono">0.5794</td>
+                                        <td style="text-align: center;"><span class="tag-pill">無統計顯著性</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>7</strong></td>
+                                        <td><code>Danceability</code></td>
+                                        <td style="text-align: right;" class="mono">0.2460</td>
+                                        <td style="text-align: right;" class="mono">0.6221</td>
+                                        <td style="text-align: center;"><span class="tag-pill">無統計顯著性</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>8</strong></td>
+                                        <td><code>Loudness..dB..</code></td>
+                                        <td style="text-align: right;" class="mono">0.0893</td>
+                                        <td style="text-align: right;" class="mono">0.7664</td>
+                                        <td style="text-align: center;"><span class="tag-pill">無統計顯著性</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>9</strong></td>
+                                        <td><code>Acousticness..</code></td>
+                                        <td style="text-align: right;" class="mono">0.0578</td>
+                                        <td style="text-align: right;" class="mono">0.8110</td>
+                                        <td style="text-align: center;"><span class="tag-pill">無統計顯著性</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 style="color: #fff; font-size: 1.15rem; margin-bottom: 0.8rem;">📊 ANOVA F-Score 條形圖</h4>
+                        <div class="chart-box" style="height: 380px;">
+                            <canvas id="anovaBarChart"></canvas>
+                        </div>
+                        <div class="callout-card card-cyan" style="margin-top: 1.2rem;">
+                            <h4>💡 過濾法洞察</h4>
+                            <p>在 9 項音訊特徵中，<strong>僅有 Valence (正向度) 達到統計學顯著標準 ($p = 0.0245 < 0.05$)</strong>，且相關係數為負 (-0.318)。這意味著在 2019 年榜單中，曲風偏抑鬱沉靜、慢調深思的流行歌曲具有更高的大眾串流次數。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 2: RFE (Wrapper Method) -->
+            <div id="panel-rfe" class="method-panel">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;">
+                    <div>
+                        <h4 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.8rem;">2. RFE 遞迴特徵消除流程 (Wrapper Method)</h4>
+                        <p style="color: var(--text-muted); font-size: 0.92rem; margin-bottom: 1.2rem;">
+                            <strong>包裝法 (Wrapper Method)</strong> 以特定機器學習模型（此處使用標準化多元線性迴歸）為核心，每次訓練後評估所有特徵係數權重，並遞迴剔除權重絕對值最小的特徵，直到選出預設數量（如 Top 3）。
+                        </p>
+
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>RFE 最終保留排名</th>
+                                        <th>特徵名稱</th>
+                                        <th>淘汰階段</th>
+                                        <th style="text-align: center;">狀態</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="background: rgba(6, 182, 212, 0.15);">
+                                        <td><strong>Rank 1 (最優)</strong></td>
+                                        <td><code>Valence.</code> (正向度)</td>
+                                        <td>保留至最後一輪</td>
+                                        <td style="text-align: center;"><span class="tag-pill tag-sweet">Top 3 特徵</span></td>
+                                    </tr>
+                                    <tr style="background: rgba(6, 182, 212, 0.15);">
+                                        <td><strong>Rank 2</strong></td>
+                                        <td><code>Speechiness.</code> (說話度)</td>
+                                        <td>保留至第 8 輪</td>
+                                        <td style="text-align: center;"><span class="tag-pill tag-sweet">Top 3 特徵</span></td>
+                                    </tr>
+                                    <tr style="background: rgba(6, 182, 212, 0.15);">
+                                        <td><strong>Rank 3</strong></td>
+                                        <td><code>Liveness</code> (現場感)</td>
+                                        <td>保留至第 7 輪</td>
+                                        <td style="text-align: center;"><span class="tag-pill tag-sweet">Top 3 特徵</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Rank 4</td>
+                                        <td><code>Length.</code> (長度)</td>
+                                        <td>第 6 輪被剔除</td>
+                                        <td style="text-align: center;"><span class="tag-pill">淘汰</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Rank 5</td>
+                                        <td><code>Loudness..dB..</code> (響度)</td>
+                                        <td>第 5 輪被剔除</td>
+                                        <td style="text-align: center;"><span class="tag-pill">淘汰</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Rank 6</td>
+                                        <td><code>Beats.Per.Minute</code> (BPM)</td>
+                                        <td>第 4 輪被剔除</td>
+                                        <td style="text-align: center;"><span class="tag-pill">淘汰</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Rank 7</td>
+                                        <td><code>Acousticness..</code> (原聲)</td>
+                                        <td>第 3 輪被剔除</td>
+                                        <td style="text-align: center;"><span class="tag-pill">淘汰</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Rank 8</td>
+                                        <td><code>Energy</code> (能量)</td>
+                                        <td>第 2 輪被剔除</td>
+                                        <td style="text-align: center;"><span class="tag-pill">淘汰</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>Rank 9</td>
+                                        <td><code>Danceability</code> (舞曲)</td>
+                                        <td>第 1 輪最先剔除</td>
+                                        <td style="text-align: center;"><span class="tag-pill tag-bad">最先淘汰</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 style="color: #fff; font-size: 1.15rem; margin-bottom: 0.8rem;">⚙️ RFE 機制與 ANOVA 之差異</h4>
+                        <div class="callout-card card-cyan" style="margin-bottom: 1.2rem;">
+                            <h4>🤝 能捕捉特徵間的「互補效益」</h4>
+                            <p>在 ANOVA 單變量過濾法中，<code>Liveness</code> 僅排在第 4 名（F=0.41，無顯著性）；但在 RFE 中，它成功晉升至 <strong>Top 3</strong>！這是因為包裝法考量了多元回歸中多個特徵組合的整體預測能力，<code>Liveness</code> 能與 <code>Valence</code> 產生交互互補，為模型提供獨立的動態維度。</p>
+                        </div>
+                        <div class="callout-card card-purple">
+                            <h4>⚖️ 優點與計算代價</h4>
+                            <p><strong>優點：</strong>特徵子集直接針對最終模型的預測效能優化，通常能找到最佳特徵組合。<br>
+                            <strong>代價：</strong>每輪都需要重新擬合模型，若特徵維度達到數百維時計算開銷較大（本專案特徵為 9 維，計算極為迅速）。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel 3: Lasso (Embedded Method) -->
+            <div id="panel-lasso" class="method-panel">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;">
+                    <div>
+                        <h4 style="color: #fff; font-size: 1.25rem; margin-bottom: 0.8rem;">3. Lasso 正則化係數稀疏化 (Embedded Method)</h4>
+                        <p style="color: var(--text-muted); font-size: 0.92rem; margin-bottom: 1.2rem;">
+                            <strong>嵌入法 (Embedded Method)</strong> 將 L1 懲罰項 $\alpha \sum |\beta_j|$ 內嵌至回歸目標函數中。超參數 $\alpha$ 控制懲罰力道，越大剔除越多無關特徵。
+                        </p>
+
+                        <div class="callout-card card-amber" style="margin-bottom: 1.2rem;">
+                            <h4>⚠️ 為何初始設定 alpha=1.5 會全數歸零？</h4>
+                            <p>在原始腳本中設定 <code>alpha=1.5</code>，由於資料集標準化後目標變數 Popularity 的標準差約為 4.49，最大特徵相關係數約為 0.32，<strong>$\alpha=1.5$ 的懲罰力道過於強大</strong>，導致所有 9 個特徵的係數全部被硬性收縮至 0.0！</p>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>特徵名稱</th>
+                                        <th style="text-align: right;">原始 (alpha=1.5)</th>
+                                        <th style="text-align: right;">LassoCV 最佳 (alpha=0.612)</th>
+                                        <th style="text-align: center;">特徵狀態 (alpha=0.612)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr style="background: rgba(29, 185, 84, 0.12);">
+                                        <td><code>Valence.</code></td>
+                                        <td style="text-align: right;" class="mono">-0.0000</td>
+                                        <td style="text-align: right; color: var(--rose-accent); font-weight: 700;" class="mono">-0.7802</td>
+                                        <td style="text-align: center;"><span class="tag-pill tag-sweet">保留 (負向主導)</span></td>
+                                    </tr>
+                                    <tr style="background: rgba(29, 185, 84, 0.12);">
+                                        <td><code>Speechiness.</code></td>
+                                        <td style="text-align: right;" class="mono">0.0000</td>
+                                        <td style="text-align: right; color: var(--spotify-green-light); font-weight: 700;" class="mono">+0.3880</td>
+                                        <td style="text-align: center;"><span class="tag-pill tag-sweet">保留 (正向關鍵)</span></td>
+                                    </tr>
+                                    <tr style="background: rgba(29, 185, 84, 0.12);">
+                                        <td><code>Beats.Per.Minute</code></td>
+                                        <td style="text-align: right;" class="mono">0.0000</td>
+                                        <td style="text-align: right; color: var(--cyan-accent); font-weight: 700;" class="mono">+0.0352</td>
+                                        <td style="text-align: center;"><span class="tag-pill tag-rfe">保留 (微幅正向)</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Energy</code></td>
+                                        <td style="text-align: right;" class="mono">-0.0000</td>
+                                        <td style="text-align: right;" class="mono">0.0000</td>
+                                        <td style="text-align: center;"><span class="tag-pill">壓縮為 0 (剔除)</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Danceability</code></td>
+                                        <td style="text-align: right;" class="mono">-0.0000</td>
+                                        <td style="text-align: right;" class="mono">-0.0000</td>
+                                        <td style="text-align: center;"><span class="tag-pill">壓縮為 0 (剔除)</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Loudness..dB..</code></td>
+                                        <td style="text-align: right;" class="mono">-0.0000</td>
+                                        <td style="text-align: right;" class="mono">0.0000</td>
+                                        <td style="text-align: center;"><span class="tag-pill">壓縮為 0 (剔除)</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Liveness</code></td>
+                                        <td style="text-align: right;" class="mono">0.0000</td>
+                                        <td style="text-align: right;" class="mono">0.0000</td>
+                                        <td style="text-align: center;"><span class="tag-pill">壓縮為 0 (剔除)</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Length.</code></td>
+                                        <td style="text-align: right;" class="mono">-0.0000</td>
+                                        <td style="text-align: right;" class="mono">-0.0000</td>
+                                        <td style="text-align: center;"><span class="tag-pill">壓縮為 0 (剔除)</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><code>Acousticness..</code></td>
+                                        <td style="text-align: right;" class="mono">-0.0000</td>
+                                        <td style="text-align: right;" class="mono">-0.0000</td>
+                                        <td style="text-align: center;"><span class="tag-pill">壓縮為 0 (剔除)</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 style="color: #fff; font-size: 1.15rem; margin-bottom: 0.8rem;">🎛️ 動態調節懲罰力度 (alpha 收縮模擬)</h4>
+                        <div style="background: rgba(11, 16, 26, 0.7); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.2rem; margin-bottom: 1.2rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <span style="font-size: 0.88rem; font-weight: 600; color: #fff;">懲罰超參數 alpha (L1 正則化強度)：</span>
+                                <span id="lassoAlphaDisplay" class="slider-val">0.612 (CV 最佳)</span>
+                            </div>
+                            <input type="range" id="lassoAlphaSlider" min="0" max="11" value="6" oninput="updateLassoPath(this.value)">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-dim); margin-top: 0.3rem;">
+                                <span>alpha=0.05 (保留較多特徵)</span>
+                                <span style="color: var(--spotify-green-light);">alpha=0.612 (最佳平衡)</span>
+                                <span style="color: var(--rose-accent);">alpha=1.5 (全數歸零)</span>
+                            </div>
+                        </div>
+
+                        <div class="chart-box" style="height: 320px;">
+                            <canvas id="lassoPathChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==========================================
+             SECTION 4: Spotify Top 50 資料集檢視器
+             ========================================== -->
+        <section id="songs" class="section-block">
+            <div class="section-header">
+                <div class="section-title">
+                    <div class="section-icon icon-amber">🎵</div>
+                    <div>
+                        <h3>Spotify Top 50 原始資料集檢視器</h3>
+                        <p>探索 2019 年 50 首全球熱播歌曲之各項音訊特徵數值，點選「載入」可直接將數值導入預測器試算</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter and Search -->
+            <div class="filter-bar">
+                <input type="text" id="songSearch" class="search-input" placeholder="🔍 搜尋歌名 (Track Name) 或 歌手 (Artist)..." oninput="filterSongs()">
+                <select id="genreSelect" class="genre-select" onchange="filterSongs()">
+                    <option value="">全部曲風 (All Genres)</option>
+                </select>
+                <div style="display: flex; align-items: center; font-size: 0.85rem; color: var(--text-muted); padding-left: 0.5rem;">
+                    符合條件：<span id="songCountText" style="color: var(--spotify-green-light); font-weight: 700; margin-left: 4px;">50</span> / 50 首
+                </div>
+            </div>
+
+            <div class="table-responsive" style="max-height: 480px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 5%;">#</th>
+                            <th style="width: 25%;">歌名 (Track Name)</th>
+                            <th style="width: 18%;">歌手 (Artist)</th>
+                            <th style="width: 14%;">曲風 (Genre)</th>
+                            <th style="text-align: right; width: 8%;">熱門度</th>
+                            <th style="text-align: right; width: 7%;">正向度</th>
+                            <th style="text-align: right; width: 7%;">說話度</th>
+                            <th style="text-align: right; width: 6%;">BPM</th>
+                            <th style="text-align: center; width: 10%;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="songsTableBody">
+                        <!-- Populated by Javascript -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p style="margin-bottom: 0.5rem;">
+            <strong>人工智慧與資訊安全 (Artificial Intelligence & Information Security)</strong> — 作業二：Spotify 特徵工程與回歸分析
+        </p>
+        <p style="font-size: 0.8rem; color: var(--text-dim);">
+            技術堆疊：Python 3.8+ · Scikit-Learn · Pandas · Matplotlib · Chart.js · 響應式現代前端設計
+        </p>
+    </footer>
+
+    <!-- Embedded JSON Data & Interactive Logic -->
+    <script>
+        // Data passed from Python
+        const songsData = [
+  {
+    "id": 1,
+    "title": "Señorita",
+    "artist": "Shawn Mendes",
+    "genre": "canadian pop",
+    "bpm": 117,
+    "energy": 55,
+    "danceability": 76,
+    "loudness": -6,
+    "liveness": 8,
+    "valence": 75,
+    "length": 191,
+    "acousticness": 4,
+    "speechiness": 3,
+    "popularity": 79
+  },
+  {
+    "id": 2,
+    "title": "China",
+    "artist": "Anuel AA",
+    "genre": "reggaeton flow",
+    "bpm": 105,
+    "energy": 81,
+    "danceability": 79,
+    "loudness": -4,
+    "liveness": 8,
+    "valence": 61,
+    "length": 302,
+    "acousticness": 8,
+    "speechiness": 9,
+    "popularity": 92
+  },
+  {
+    "id": 3,
+    "title": "boyfriend (with Social House)",
+    "artist": "Ariana Grande",
+    "genre": "dance pop",
+    "bpm": 190,
+    "energy": 80,
+    "danceability": 40,
+    "loudness": -4,
+    "liveness": 16,
+    "valence": 70,
+    "length": 186,
+    "acousticness": 12,
+    "speechiness": 46,
+    "popularity": 85
+  },
+  {
+    "id": 4,
+    "title": "Beautiful People (feat. Khalid)",
+    "artist": "Ed Sheeran",
+    "genre": "pop",
+    "bpm": 93,
+    "energy": 65,
+    "danceability": 64,
+    "loudness": -8,
+    "liveness": 8,
+    "valence": 55,
+    "length": 198,
+    "acousticness": 12,
+    "speechiness": 19,
+    "popularity": 86
+  },
+  {
+    "id": 5,
+    "title": "Goodbyes (Feat. Young Thug)",
+    "artist": "Post Malone",
+    "genre": "dfw rap",
+    "bpm": 150,
+    "energy": 65,
+    "danceability": 58,
+    "loudness": -4,
+    "liveness": 11,
+    "valence": 18,
+    "length": 175,
+    "acousticness": 45,
+    "speechiness": 7,
+    "popularity": 94
+  },
+  {
+    "id": 6,
+    "title": "I Don't Care (with Justin Bieber)",
+    "artist": "Ed Sheeran",
+    "genre": "pop",
+    "bpm": 102,
+    "energy": 68,
+    "danceability": 80,
+    "loudness": -5,
+    "liveness": 9,
+    "valence": 84,
+    "length": 220,
+    "acousticness": 9,
+    "speechiness": 4,
+    "popularity": 84
+  },
+  {
+    "id": 7,
+    "title": "Ransom",
+    "artist": "Lil Tecca",
+    "genre": "trap music",
+    "bpm": 180,
+    "energy": 64,
+    "danceability": 75,
+    "loudness": -6,
+    "liveness": 7,
+    "valence": 23,
+    "length": 131,
+    "acousticness": 2,
+    "speechiness": 29,
+    "popularity": 92
+  },
+  {
+    "id": 8,
+    "title": "How Do You Sleep?",
+    "artist": "Sam Smith",
+    "genre": "pop",
+    "bpm": 111,
+    "energy": 68,
+    "danceability": 48,
+    "loudness": -5,
+    "liveness": 8,
+    "valence": 35,
+    "length": 202,
+    "acousticness": 15,
+    "speechiness": 9,
+    "popularity": 90
+  },
+  {
+    "id": 9,
+    "title": "Old Town Road - Remix",
+    "artist": "Lil Nas X",
+    "genre": "country rap",
+    "bpm": 136,
+    "energy": 62,
+    "danceability": 88,
+    "loudness": -6,
+    "liveness": 11,
+    "valence": 64,
+    "length": 157,
+    "acousticness": 5,
+    "speechiness": 10,
+    "popularity": 87
+  },
+  {
+    "id": 10,
+    "title": "bad guy",
+    "artist": "Billie Eilish",
+    "genre": "electropop",
+    "bpm": 135,
+    "energy": 43,
+    "danceability": 70,
+    "loudness": -11,
+    "liveness": 10,
+    "valence": 56,
+    "length": 194,
+    "acousticness": 33,
+    "speechiness": 38,
+    "popularity": 95
+  },
+  {
+    "id": 11,
+    "title": "Callaita",
+    "artist": "Bad Bunny",
+    "genre": "reggaeton",
+    "bpm": 176,
+    "energy": 62,
+    "danceability": 61,
+    "loudness": -5,
+    "liveness": 24,
+    "valence": 24,
+    "length": 251,
+    "acousticness": 60,
+    "speechiness": 31,
+    "popularity": 93
+  },
+  {
+    "id": 12,
+    "title": "Loco Contigo (feat. J. Balvin & Tyga)",
+    "artist": "DJ Snake",
+    "genre": "dance pop",
+    "bpm": 96,
+    "energy": 71,
+    "danceability": 82,
+    "loudness": -4,
+    "liveness": 15,
+    "valence": 38,
+    "length": 185,
+    "acousticness": 28,
+    "speechiness": 7,
+    "popularity": 86
+  },
+  {
+    "id": 13,
+    "title": "Someone You Loved",
+    "artist": "Lewis Capaldi",
+    "genre": "pop",
+    "bpm": 110,
+    "energy": 41,
+    "danceability": 50,
+    "loudness": -6,
+    "liveness": 11,
+    "valence": 45,
+    "length": 182,
+    "acousticness": 75,
+    "speechiness": 3,
+    "popularity": 88
+  },
+  {
+    "id": 14,
+    "title": "Otro Trago - Remix",
+    "artist": "Sech",
+    "genre": "panamanian pop",
+    "bpm": 176,
+    "energy": 79,
+    "danceability": 73,
+    "loudness": -2,
+    "liveness": 6,
+    "valence": 76,
+    "length": 288,
+    "acousticness": 7,
+    "speechiness": 20,
+    "popularity": 87
+  },
+  {
+    "id": 15,
+    "title": "Money In The Grave (Drake ft. Rick Ross)",
+    "artist": "Drake",
+    "genre": "canadian hip hop",
+    "bpm": 101,
+    "energy": 50,
+    "danceability": 83,
+    "loudness": -4,
+    "liveness": 12,
+    "valence": 10,
+    "length": 205,
+    "acousticness": 10,
+    "speechiness": 5,
+    "popularity": 92
+  },
+  {
+    "id": 16,
+    "title": "No Guidance (feat. Drake)",
+    "artist": "Chris Brown",
+    "genre": "dance pop",
+    "bpm": 93,
+    "energy": 45,
+    "danceability": 70,
+    "loudness": -7,
+    "liveness": 16,
+    "valence": 14,
+    "length": 261,
+    "acousticness": 12,
+    "speechiness": 15,
+    "popularity": 82
+  },
+  {
+    "id": 17,
+    "title": "LA CANCIÓN",
+    "artist": "J Balvin",
+    "genre": "latin",
+    "bpm": 176,
+    "energy": 65,
+    "danceability": 75,
+    "loudness": -6,
+    "liveness": 11,
+    "valence": 43,
+    "length": 243,
+    "acousticness": 15,
+    "speechiness": 32,
+    "popularity": 90
+  },
+  {
+    "id": 18,
+    "title": "Sunflower - Spider-Man: Into the Spider-Verse",
+    "artist": "Post Malone",
+    "genre": "dfw rap",
+    "bpm": 90,
+    "energy": 48,
+    "danceability": 76,
+    "loudness": -6,
+    "liveness": 7,
+    "valence": 91,
+    "length": 158,
+    "acousticness": 56,
+    "speechiness": 5,
+    "popularity": 91
+  },
+  {
+    "id": 19,
+    "title": "Lalala",
+    "artist": "Y2K",
+    "genre": "canadian hip hop",
+    "bpm": 130,
+    "energy": 39,
+    "danceability": 84,
+    "loudness": -8,
+    "liveness": 14,
+    "valence": 50,
+    "length": 161,
+    "acousticness": 18,
+    "speechiness": 8,
+    "popularity": 88
+  },
+  {
+    "id": 20,
+    "title": "Truth Hurts",
+    "artist": "Lizzo",
+    "genre": "escape room",
+    "bpm": 158,
+    "energy": 62,
+    "danceability": 72,
+    "loudness": -3,
+    "liveness": 12,
+    "valence": 41,
+    "length": 173,
+    "acousticness": 11,
+    "speechiness": 11,
+    "popularity": 91
+  },
+  {
+    "id": 21,
+    "title": "Piece Of Your Heart",
+    "artist": "MEDUZA",
+    "genre": "pop house",
+    "bpm": 124,
+    "energy": 74,
+    "danceability": 68,
+    "loudness": -7,
+    "liveness": 7,
+    "valence": 63,
+    "length": 153,
+    "acousticness": 4,
+    "speechiness": 3,
+    "popularity": 91
+  },
+  {
+    "id": 22,
+    "title": "Panini",
+    "artist": "Lil Nas X",
+    "genre": "country rap",
+    "bpm": 154,
+    "energy": 59,
+    "danceability": 70,
+    "loudness": -6,
+    "liveness": 12,
+    "valence": 48,
+    "length": 115,
+    "acousticness": 34,
+    "speechiness": 8,
+    "popularity": 91
+  },
+  {
+    "id": 23,
+    "title": "No Me Conoce - Remix",
+    "artist": "Jhay Cortez",
+    "genre": "reggaeton flow",
+    "bpm": 92,
+    "energy": 79,
+    "danceability": 81,
+    "loudness": -4,
+    "liveness": 9,
+    "valence": 58,
+    "length": 309,
+    "acousticness": 14,
+    "speechiness": 7,
+    "popularity": 83
+  },
+  {
+    "id": 24,
+    "title": "Soltera - Remix",
+    "artist": "Lunay",
+    "genre": "latin",
+    "bpm": 92,
+    "energy": 78,
+    "danceability": 80,
+    "loudness": -4,
+    "liveness": 44,
+    "valence": 80,
+    "length": 266,
+    "acousticness": 36,
+    "speechiness": 4,
+    "popularity": 91
+  },
+  {
+    "id": 25,
+    "title": "bad guy (with Justin Bieber)",
+    "artist": "Billie Eilish",
+    "genre": "electropop",
+    "bpm": 135,
+    "energy": 45,
+    "danceability": 67,
+    "loudness": -11,
+    "liveness": 12,
+    "valence": 68,
+    "length": 195,
+    "acousticness": 25,
+    "speechiness": 30,
+    "popularity": 89
+  },
+  {
+    "id": 26,
+    "title": "If I Can't Have You",
+    "artist": "Shawn Mendes",
+    "genre": "canadian pop",
+    "bpm": 124,
+    "energy": 82,
+    "danceability": 69,
+    "loudness": -4,
+    "liveness": 13,
+    "valence": 87,
+    "length": 191,
+    "acousticness": 49,
+    "speechiness": 6,
+    "popularity": 70
+  },
+  {
+    "id": 27,
+    "title": "Dance Monkey",
+    "artist": "Tones and I",
+    "genre": "australian pop",
+    "bpm": 98,
+    "energy": 59,
+    "danceability": 82,
+    "loudness": -6,
+    "liveness": 18,
+    "valence": 54,
+    "length": 210,
+    "acousticness": 69,
+    "speechiness": 10,
+    "popularity": 83
+  },
+  {
+    "id": 28,
+    "title": "It's You",
+    "artist": "Ali Gatie",
+    "genre": "canadian hip hop",
+    "bpm": 96,
+    "energy": 46,
+    "danceability": 73,
+    "loudness": -7,
+    "liveness": 19,
+    "valence": 40,
+    "length": 213,
+    "acousticness": 37,
+    "speechiness": 3,
+    "popularity": 89
+  },
+  {
+    "id": 29,
+    "title": "Con Calma",
+    "artist": "Daddy Yankee",
+    "genre": "latin",
+    "bpm": 94,
+    "energy": 86,
+    "danceability": 74,
+    "loudness": -3,
+    "liveness": 6,
+    "valence": 66,
+    "length": 193,
+    "acousticness": 11,
+    "speechiness": 6,
+    "popularity": 91
+  },
+  {
+    "id": 30,
+    "title": "QUE PRETENDES",
+    "artist": "J Balvin",
+    "genre": "latin",
+    "bpm": 93,
+    "energy": 79,
+    "danceability": 64,
+    "loudness": -4,
+    "liveness": 36,
+    "valence": 94,
+    "length": 222,
+    "acousticness": 3,
+    "speechiness": 25,
+    "popularity": 89
+  },
+  {
+    "id": 31,
+    "title": "Takeaway",
+    "artist": "The Chainsmokers",
+    "genre": "edm",
+    "bpm": 85,
+    "energy": 51,
+    "danceability": 29,
+    "loudness": -8,
+    "liveness": 10,
+    "valence": 36,
+    "length": 210,
+    "acousticness": 12,
+    "speechiness": 4,
+    "popularity": 84
+  },
+  {
+    "id": 32,
+    "title": "7 rings",
+    "artist": "Ariana Grande",
+    "genre": "dance pop",
+    "bpm": 140,
+    "energy": 32,
+    "danceability": 78,
+    "loudness": -11,
+    "liveness": 9,
+    "valence": 33,
+    "length": 179,
+    "acousticness": 59,
+    "speechiness": 33,
+    "popularity": 89
+  },
+  {
+    "id": 33,
+    "title": "0.958333333333333",
+    "artist": "Maluma",
+    "genre": "reggaeton",
+    "bpm": 96,
+    "energy": 71,
+    "danceability": 78,
+    "loudness": -5,
+    "liveness": 9,
+    "valence": 68,
+    "length": 176,
+    "acousticness": 22,
+    "speechiness": 28,
+    "popularity": 89
+  },
+  {
+    "id": 34,
+    "title": "The London (feat. J. Cole & Travis Scott)",
+    "artist": "Young Thug",
+    "genre": "atl hip hop",
+    "bpm": 98,
+    "energy": 59,
+    "danceability": 80,
+    "loudness": -7,
+    "liveness": 13,
+    "valence": 18,
+    "length": 200,
+    "acousticness": 2,
+    "speechiness": 15,
+    "popularity": 89
+  },
+  {
+    "id": 35,
+    "title": "Never Really Over",
+    "artist": "Katy Perry",
+    "genre": "dance pop",
+    "bpm": 100,
+    "energy": 88,
+    "danceability": 77,
+    "loudness": -5,
+    "liveness": 32,
+    "valence": 39,
+    "length": 224,
+    "acousticness": 19,
+    "speechiness": 6,
+    "popularity": 89
+  },
+  {
+    "id": 36,
+    "title": "Summer Days (feat. Macklemore & Patrick Stump of Fall Out Boy)",
+    "artist": "Martin Garrix",
+    "genre": "big room",
+    "bpm": 114,
+    "energy": 72,
+    "danceability": 66,
+    "loudness": -7,
+    "liveness": 14,
+    "valence": 32,
+    "length": 164,
+    "acousticness": 18,
+    "speechiness": 6,
+    "popularity": 89
+  },
+  {
+    "id": 37,
+    "title": "Otro Trago",
+    "artist": "Sech",
+    "genre": "panamanian pop",
+    "bpm": 176,
+    "energy": 70,
+    "danceability": 75,
+    "loudness": -5,
+    "liveness": 11,
+    "valence": 62,
+    "length": 226,
+    "acousticness": 14,
+    "speechiness": 34,
+    "popularity": 91
+  },
+  {
+    "id": 38,
+    "title": "Antisocial (with Travis Scott)",
+    "artist": "Ed Sheeran",
+    "genre": "pop",
+    "bpm": 152,
+    "energy": 82,
+    "danceability": 72,
+    "loudness": -5,
+    "liveness": 36,
+    "valence": 91,
+    "length": 162,
+    "acousticness": 13,
+    "speechiness": 5,
+    "popularity": 87
+  },
+  {
+    "id": 39,
+    "title": "Sucker",
+    "artist": "Jonas Brothers",
+    "genre": "boy band",
+    "bpm": 138,
+    "energy": 73,
+    "danceability": 84,
+    "loudness": -5,
+    "liveness": 11,
+    "valence": 95,
+    "length": 181,
+    "acousticness": 4,
+    "speechiness": 6,
+    "popularity": 80
+  },
+  {
+    "id": 40,
+    "title": "fuck, i'm lonely (with Anne-Marie) - from 13 Reasons Why: Season 3",
+    "artist": "Lauv",
+    "genre": "dance pop",
+    "bpm": 95,
+    "energy": 56,
+    "danceability": 81,
+    "loudness": -6,
+    "liveness": 6,
+    "valence": 68,
+    "length": 199,
+    "acousticness": 48,
+    "speechiness": 7,
+    "popularity": 78
+  },
+  {
+    "id": 41,
+    "title": "Higher Love",
+    "artist": "Kygo",
+    "genre": "edm",
+    "bpm": 104,
+    "energy": 68,
+    "danceability": 69,
+    "loudness": -7,
+    "liveness": 10,
+    "valence": 40,
+    "length": 228,
+    "acousticness": 2,
+    "speechiness": 3,
+    "popularity": 88
+  },
+  {
+    "id": 42,
+    "title": "You Need To Calm Down",
+    "artist": "Taylor Swift",
+    "genre": "dance pop",
+    "bpm": 85,
+    "energy": 68,
+    "danceability": 77,
+    "loudness": -6,
+    "liveness": 7,
+    "valence": 73,
+    "length": 171,
+    "acousticness": 1,
+    "speechiness": 5,
+    "popularity": 90
+  },
+  {
+    "id": 43,
+    "title": "Shallow",
+    "artist": "Lady Gaga",
+    "genre": "dance pop",
+    "bpm": 96,
+    "energy": 39,
+    "danceability": 57,
+    "loudness": -6,
+    "liveness": 23,
+    "valence": 32,
+    "length": 216,
+    "acousticness": 37,
+    "speechiness": 3,
+    "popularity": 87
+  },
+  {
+    "id": 44,
+    "title": "Talk",
+    "artist": "Khalid",
+    "genre": "pop",
+    "bpm": 136,
+    "energy": 40,
+    "danceability": 90,
+    "loudness": -9,
+    "liveness": 6,
+    "valence": 35,
+    "length": 198,
+    "acousticness": 5,
+    "speechiness": 13,
+    "popularity": 84
+  },
+  {
+    "id": 45,
+    "title": "Con Altura",
+    "artist": "ROSALÍA",
+    "genre": "r&b en espanol",
+    "bpm": 98,
+    "energy": 69,
+    "danceability": 88,
+    "loudness": -4,
+    "liveness": 5,
+    "valence": 75,
+    "length": 162,
+    "acousticness": 39,
+    "speechiness": 12,
+    "popularity": 88
+  },
+  {
+    "id": 46,
+    "title": "One Thing Right",
+    "artist": "Marshmello",
+    "genre": "brostep",
+    "bpm": 88,
+    "energy": 62,
+    "danceability": 66,
+    "loudness": -2,
+    "liveness": 58,
+    "valence": 44,
+    "length": 182,
+    "acousticness": 7,
+    "speechiness": 5,
+    "popularity": 88
+  },
+  {
+    "id": 47,
+    "title": "Te Robaré",
+    "artist": "Nicky Jam",
+    "genre": "latin",
+    "bpm": 176,
+    "energy": 75,
+    "danceability": 67,
+    "loudness": -4,
+    "liveness": 8,
+    "valence": 80,
+    "length": 202,
+    "acousticness": 24,
+    "speechiness": 6,
+    "popularity": 88
+  },
+  {
+    "id": 48,
+    "title": "Happier",
+    "artist": "Marshmello",
+    "genre": "brostep",
+    "bpm": 100,
+    "energy": 79,
+    "danceability": 69,
+    "loudness": -3,
+    "liveness": 17,
+    "valence": 67,
+    "length": 214,
+    "acousticness": 19,
+    "speechiness": 5,
+    "popularity": 88
+  },
+  {
+    "id": 49,
+    "title": "Call You Mine",
+    "artist": "The Chainsmokers",
+    "genre": "edm",
+    "bpm": 104,
+    "energy": 70,
+    "danceability": 59,
+    "loudness": -6,
+    "liveness": 41,
+    "valence": 50,
+    "length": 218,
+    "acousticness": 23,
+    "speechiness": 3,
+    "popularity": 88
+  },
+  {
+    "id": 50,
+    "title": "Cross Me (feat. Chance the Rapper & PnB Rock)",
+    "artist": "Ed Sheeran",
+    "genre": "pop",
+    "bpm": 95,
+    "energy": 79,
+    "danceability": 75,
+    "loudness": -6,
+    "liveness": 7,
+    "valence": 61,
+    "length": 206,
+    "acousticness": 21,
+    "speechiness": 12,
+    "popularity": 82
+  }
+];
+        const lassoPathData = [
+  {
+    "alpha": 0.05,
+    "Beats.Per.Minute": 0.2892,
+    "Energy": 0.1385,
+    "Danceability": 0.0729,
+    "Loudness..dB..": 0.2161,
+    "Liveness": 0.5579,
+    "Valence.": -1.46,
+    "Length.": -0.5329,
+    "Acousticness..": -0.1478,
+    "Speechiness.": 0.9467
+  },
+  {
+    "alpha": 0.1,
+    "Beats.Per.Minute": 0.287,
+    "Energy": 0.068,
+    "Danceability": 0.0,
+    "Loudness..dB..": 0.1666,
+    "Liveness": 0.4962,
+    "Valence.": -1.3551,
+    "Length.": -0.4406,
+    "Acousticness..": -0.1213,
+    "Speechiness.": 0.8639
+  },
+  {
+    "alpha": 0.2,
+    "Beats.Per.Minute": 0.2942,
+    "Energy": 0.0,
+    "Danceability": 0.0,
+    "Loudness..dB..": 0.0281,
+    "Liveness": 0.3964,
+    "Valence.": -1.1917,
+    "Length.": -0.2641,
+    "Acousticness..": -0.0379,
+    "Speechiness.": 0.7033
+  },
+  {
+    "alpha": 0.3,
+    "Beats.Per.Minute": 0.2477,
+    "Energy": 0.0,
+    "Danceability": -0.0,
+    "Loudness..dB..": 0.0,
+    "Liveness": 0.2644,
+    "Valence.": -1.0845,
+    "Length.": -0.1376,
+    "Acousticness..": -0.0,
+    "Speechiness.": 0.6045
+  },
+  {
+    "alpha": 0.4,
+    "Beats.Per.Minute": 0.1892,
+    "Energy": 0.0,
+    "Danceability": -0.0,
+    "Loudness..dB..": 0.0,
+    "Liveness": 0.1271,
+    "Valence.": -0.9854,
+    "Length.": -0.0219,
+    "Acousticness..": -0.0,
+    "Speechiness.": 0.5198
+  },
+  {
+    "alpha": 0.5,
+    "Beats.Per.Minute": 0.1098,
+    "Energy": 0.0,
+    "Danceability": -0.0,
+    "Loudness..dB..": 0.0,
+    "Liveness": 0.0009,
+    "Valence.": -0.8875,
+    "Length.": -0.0,
+    "Acousticness..": -0.0,
+    "Speechiness.": 0.4524
+  },
+  {
+    "alpha": 0.612,
+    "Beats.Per.Minute": 0.0349,
+    "Energy": 0.0,
+    "Danceability": -0.0,
+    "Loudness..dB..": 0.0,
+    "Liveness": 0.0,
+    "Valence.": -0.7798,
+    "Length.": -0.0,
+    "Acousticness..": -0.0,
+    "Speechiness.": 0.3877
+  },
+  {
+    "alpha": 0.7,
+    "Beats.Per.Minute": 0.0,
+    "Energy": -0.0,
+    "Danceability": -0.0,
+    "Loudness..dB..": 0.0,
+    "Liveness": 0.0,
+    "Valence.": -0.6956,
+    "Length.": -0.0,
+    "Acousticness..": -0.0,
+    "Speechiness.": 0.3237
+  },
+  {
+    "alpha": 0.8,
+    "Beats.Per.Minute": 0.0,
+    "Energy": -0.0,
+    "Danceability": -0.0,
+    "Loudness..dB..": 0.0,
+    "Liveness": 0.0,
+    "Valence.": -0.6007,
+    "Length.": -0.0,
+    "Acousticness..": -0.0,
+    "Speechiness.": 0.2287
+  },
+  {
+    "alpha": 1.0,
+    "Beats.Per.Minute": 0.0,
+    "Energy": -0.0,
+    "Danceability": -0.0,
+    "Loudness..dB..": -0.0,
+    "Liveness": 0.0,
+    "Valence.": -0.4108,
+    "Length.": -0.0,
+    "Acousticness..": -0.0,
+    "Speechiness.": 0.0388
+  },
+  {
+    "alpha": 1.2,
+    "Beats.Per.Minute": 0.0,
+    "Energy": -0.0,
+    "Danceability": -0.0,
+    "Loudness..dB..": -0.0,
+    "Liveness": 0.0,
+    "Valence.": -0.2128,
+    "Length.": -0.0,
+    "Acousticness..": -0.0,
+    "Speechiness.": 0.0
+  },
+  {
+    "alpha": 1.5,
+    "Beats.Per.Minute": 0.0,
+    "Energy": -0.0,
+    "Danceability": -0.0,
+    "Loudness..dB..": -0.0,
+    "Liveness": 0.0,
+    "Valence.": -0.0,
+    "Length.": -0.0,
+    "Acousticness..": -0.0,
+    "Speechiness.": 0.0
+  }
+];
+
+        // Model Coefficients
+        // Mode 1: Sweet Spot (Valence + Speechiness)
+        // Popularity = 89.742569 - 0.061516 * Valence + 0.089441 * Speechiness
+        const sweetModel = {
+            intercept: 89.742569,
+            coefs: { valence: -0.061516, speech: 0.089441 }
+        };
+
+        // Mode 2: RFE Top 3 (Valence + Speechiness + Liveness)
+        // Popularity = 88.921798 - 0.061759 * Valence + 0.095836 * Speechiness + 0.051447 * Liveness
+        const rfeModel = {
+            intercept: 88.921798,
+            coefs: { valence: -0.061759, speech: 0.095836, liveness: 0.051447 }
+        };
+
+        // Mode 3: Full 9 Features Model
+        // Intercept: 90.522457
+        const fullModel = {
+            intercept: 90.522457,
+            coefs: {
+                bpm: 0.009554,
+                energy: 0.014917,
+                dance: 0.013131,
+                loudness: 0.130221,
+                liveness: 0.056450,
+                valence: -0.070860,
+                length: -0.016139,
+                acoustic: -0.009210,
+                speech: 0.093227
+            }
+        };
+
+        let currentModelKey = 'sweet';
+        let sweetSpotChartInstance = null;
+        let audioRadarChartInstance = null;
+        let anovaBarChartInstance = null;
+        let lassoPathChartInstance = null;
+
+        // On DOM Load
+        document.addEventListener('DOMContentLoaded', () => {
+            initSweetSpotChart();
+            initAudioRadarChart();
+            initAnovaBarChart();
+            initLassoChart();
+            initSongsExplorer();
+            updatePrediction();
+        });
+
+        // 1. Sweet Spot View Toggles
+        function switchSweetView(view) {
+            document.getElementById('btnViewChart').classList.toggle('active', view === 'chart');
+            document.getElementById('btnViewImage').classList.toggle('active', view === 'image');
+            document.getElementById('btnViewTableImg').classList.toggle('active', view === 'tableImg');
+
+            document.getElementById('sweetChartContainer').style.display = view === 'chart' ? 'block' : 'none';
+            document.getElementById('sweetImageContainer').style.display = view === 'image' ? 'block' : 'none';
+            document.getElementById('sweetTableImgContainer').style.display = view === 'tableImg' ? 'block' : 'none';
+        }
+
+        function initSweetSpotChart() {
+            const ctx = document.getElementById('sweetSpotChart').getContext('2d');
+            const labels = ['k=1 (Valence)', 'k=2 (Valence+Speech)', 'k=3 (+Liveness)', 'k=4 (+Length)', 'k=5 (+Loudness)', 'k=6 (+BPM)', 'k=7 (+Acoustic)', 'k=8 (+Energy)', 'k=9 (+Dance)'];
+            const rmseData = [6.651936, 6.468910, 6.489122, 6.493394, 6.505599, 6.486942, 6.969816, 7.317351, 7.336715];
+            const r2Data = [-0.137780, -0.076030, -0.082764, -0.084190, -0.088270, -0.082037, -0.249121, -0.376797, -0.384093];
+
+            sweetSpotChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: '測試集 RMSE (均方根誤差 - 越低越好)',
+                            data: rmseData,
+                            borderColor: '#1db954',
+                            backgroundColor: 'rgba(29, 185, 84, 0.1)',
+                            pointBackgroundColor: '#1db954',
+                            pointBorderColor: '#fff',
+                            pointRadius: 6,
+                            pointHoverRadius: 9,
+                            borderWidth: 3,
+                            tension: 0.25,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '測試集 R² (決定係數 - 越高越好)',
+                            data: r2Data,
+                            borderColor: '#06b6d4',
+                            backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                            pointBackgroundColor: '#06b6d4',
+                            pointBorderColor: '#fff',
+                            pointRadius: 6,
+                            pointHoverRadius: 9,
+                            borderWidth: 3,
+                            borderDash: [5, 5],
+                            tension: 0.25,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#e2e8f0',
+                                font: { family: 'Outfit', size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleFont: { family: 'Outfit', size: 13, weight: 'bold' },
+                            bodyFont: { family: 'JetBrains Mono', size: 12 },
+                            padding: 12,
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 } }
+                        },
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: '測試集 RMSE', color: '#1db954' },
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#1db954', font: { family: 'JetBrains Mono' } }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: '測試集 R²', color: '#06b6d4' },
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: '#06b6d4', font: { family: 'JetBrains Mono' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 2. Predictor View Switcher
+        function switchPredictorView(view) {
+            document.getElementById('btnViewPredictor').classList.toggle('active', view === 'calc');
+            document.getElementById('btnViewScatter').classList.toggle('active', view === 'scatter');
+
+            document.getElementById('predictorCalcBox').style.display = view === 'calc' ? 'grid' : 'none';
+            document.getElementById('predictorScatterBox').style.display = view === 'scatter' ? 'block' : 'none';
+        }
+
+        function selectModel(key) {
+            currentModelKey = key;
+            document.querySelectorAll('.model-tab').forEach((tab, idx) => {
+                tab.classList.toggle('active', (key === 'sweet' && idx === 0) || (key === 'rfe' && idx === 1) || (key === 'full' && idx === 2));
+            });
+            updatePrediction();
+        }
+
+        function loadPreset(presetKey) {
+            const presets = {
+                badguy: { valence: 56, speech: 38, liveness: 10, bpm: 135, energy: 43, dance: 70 },
+                senorita: { valence: 75, speech: 3, liveness: 8, bpm: 117, energy: 55, dance: 76 },
+                '7rings': { valence: 33, speech: 33, liveness: 9, bpm: 140, energy: 32, dance: 78 },
+                oldtown: { valence: 64, speech: 11, liveness: 10, bpm: 136, energy: 62, dance: 88 }
+            };
+
+            const p = presets[presetKey];
+            if (!p) return;
+
+            document.getElementById('input_valence').value = p.valence;
+            document.getElementById('input_speech').value = p.speech;
+            document.getElementById('input_liveness').value = p.liveness;
+            document.getElementById('input_bpm').value = p.bpm;
+            document.getElementById('input_energy').value = p.energy;
+            document.getElementById('input_dance').value = p.dance;
+
+            updatePrediction();
+        }
+
+        function updatePrediction() {
+            const valence = parseFloat(document.getElementById('input_valence').value);
+            const speech = parseFloat(document.getElementById('input_speech').value);
+            const liveness = parseFloat(document.getElementById('input_liveness').value);
+            const bpm = parseFloat(document.getElementById('input_bpm').value);
+            const energy = parseFloat(document.getElementById('input_energy').value);
+            const dance = parseFloat(document.getElementById('input_dance').value);
+
+            document.getElementById('val_valence').innerText = valence;
+            document.getElementById('val_speech').innerText = speech;
+            document.getElementById('val_liveness').innerText = liveness;
+            document.getElementById('val_bpm').innerText = bpm;
+            document.getElementById('val_energy').innerText = energy;
+            document.getElementById('val_dance').innerText = dance;
+
+            let score = 0;
+            let formulaHtml = '';
+
+            if (currentModelKey === 'sweet') {
+                score = sweetModel.intercept + (sweetModel.coefs.valence * valence) + (sweetModel.coefs.speech * speech);
+                formulaHtml = `Popularity = 89.7426 - (0.0615 × ${valence}) + (0.0894 × ${speech}) = <strong>${score.toFixed(2)}</strong>`;
+            } else if (currentModelKey === 'rfe') {
+                score = rfeModel.intercept + (rfeModel.coefs.valence * valence) + (rfeModel.coefs.speech * speech) + (rfeModel.coefs.liveness * liveness);
+                formulaHtml = `Popularity = 88.9218 - (0.0618 × ${valence}) + (0.0958 × ${speech}) + (0.0514 × ${liveness}) = <strong>${score.toFixed(2)}</strong>`;
+            } else {
+                // full 9 features (fixed typical length 200, loudness -5.6, acousticness 22)
+                score = fullModel.intercept + 
+                        (fullModel.coefs.bpm * bpm) + 
+                        (fullModel.coefs.energy * energy) + 
+                        (fullModel.coefs.dance * dance) + 
+                        (fullModel.coefs.loudness * -5.66) + 
+                        (fullModel.coefs.liveness * liveness) + 
+                        (fullModel.coefs.valence * valence) + 
+                        (fullModel.coefs.length * 200.96) + 
+                        (fullModel.coefs.acoustic * 22.16) + 
+                        (fullModel.coefs.speech * speech);
+                formulaHtml = `Popularity (全 9 特徵回歸) = <strong>${score.toFixed(2)}</strong>`;
+            }
+
+            // Clamp score between 0 and 100
+            score = Math.max(50, Math.min(100, score));
+            document.getElementById('predictedScoreText').innerText = score.toFixed(1);
+            document.getElementById('formulaText').innerHTML = formulaHtml;
+
+            // Update Tier Badge & Gauge
+            const badge = document.getElementById('popularityTierBadge');
+            const circle = document.getElementById('gaugeCircle');
+            const deg = (score / 100) * 360;
+
+            if (score >= 90) {
+                badge.className = 'tier-badge tier-viral';
+                badge.innerText = '🔥 全球爆紅神曲 (Viral Hit: 90+)';
+                circle.style.background = `conic-gradient(#1db954 0deg, #10b981 ${deg}deg, #1e293b ${deg}deg)`;
+            } else if (score >= 86) {
+                badge.className = 'tier-badge tier-high';
+                badge.innerText = '🎧 高頻輪播金曲 (High Rotation: 86~89)';
+                circle.style.background = `conic-gradient(#06b6d4 0deg, #3b82f6 ${deg}deg, #1e293b ${deg}deg)`;
+            } else if (score >= 82) {
+                badge.className = 'tier-badge tier-mid';
+                badge.innerText = '✨ 中度流行歌曲 (Moderate Pop: 82~85)';
+                circle.style.background = `conic-gradient(#f59e0b 0deg, #fbbf24 ${deg}deg, #1e293b ${deg}deg)`;
+            } else {
+                badge.className = 'tier-badge tier-niche';
+                badge.innerText = '📻 小眾獨立音樂 (Niche / Low Stream: <82)';
+                circle.style.background = `conic-gradient(#64748b 0deg, #94a3b8 ${deg}deg, #1e293b ${deg}deg)`;
+            }
+
+            // Update Radar Chart
+            updateAudioRadar([valence, speech, liveness, energy, dance, (bpm - 60) / 1.4]);
+        }
+
+        function initAudioRadarChart() {
+            const ctx = document.getElementById('audioRadarChart').getContext('2d');
+            audioRadarChartInstance = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['正向度 (Valence)', '說話度 (Speech)', '現場感 (Live)', '能量 (Energy)', '跳舞度 (Dance)', '節奏 (BPM)'],
+                    datasets: [{
+                        label: '當前歌曲音訊特徵',
+                        data: [55, 12, 15, 64, 71, 42],
+                        backgroundColor: 'rgba(29, 185, 84, 0.25)',
+                        borderColor: '#1db954',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#1db954',
+                        pointBorderColor: '#fff',
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        r: {
+                            angleLines: { color: 'rgba(255, 255, 255, 0.08)' },
+                            grid: { color: 'rgba(255, 255, 255, 0.08)' },
+                            pointLabels: {
+                                color: '#94a3b8',
+                                font: { family: 'Outfit', size: 10, weight: '500' }
+                            },
+                            ticks: { display: false, max: 100, min: 0 }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateAudioRadar(newData) {
+            if (!audioRadarChartInstance) return;
+            audioRadarChartInstance.data.datasets[0].data = newData;
+            audioRadarChartInstance.update();
+        }
+
+        // 3. Dropdown Feature Selection Methods
+        function changeMethod(val) {
+            document.querySelectorAll('.method-panel').forEach(panel => panel.classList.remove('active'));
+            const target = document.getElementById('panel-' + val);
+            if (target) target.classList.add('active');
+
+            const names = {
+                anova: 'ANOVA F-value (Filter Method)',
+                rfe: 'RFE 遞迴特徵消除 (Wrapper Method)',
+                lasso: 'Lasso 正則化 (Embedded Method)'
+            };
+            document.getElementById('currentMethodBadge').innerText = names[val] || val;
+        }
+
+        function initAnovaBarChart() {
+            const ctx = document.getElementById('anovaBarChart').getContext('2d');
+            const labels = ['Valence.', 'Speechiness.', 'BPM', 'Liveness', 'Length.', 'Energy', 'Danceability', 'Loudness', 'Acousticness'];
+            const scores = [5.3907, 2.8964, 1.9196, 0.4148, 0.3715, 0.3115, 0.2460, 0.0893, 0.0578];
+
+            anovaBarChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'ANOVA F-Score (關聯度)',
+                        data: scores,
+                        backgroundColor: scores.map((s, idx) => idx === 0 ? '#1db954' : (idx === 1 ? '#06b6d4' : 'rgba(148, 163, 184, 0.4)')),
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { color: '#fff', font: { family: 'Outfit', weight: '600' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initLassoChart() {
+            const ctx = document.getElementById('lassoPathChart').getContext('2d');
+            lassoPathChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Valence', 'Speech', 'BPM', 'Energy', 'Dance', 'Loudness', 'Live', 'Length', 'Acoustic'],
+                    datasets: [{
+                        label: 'Lasso 迴歸權重係數',
+                        data: [-0.7802, 0.3880, 0.0352, 0, 0, 0, 0, 0, 0],
+                        backgroundColor: [-0.7802, 0.3880, 0.0352, 0, 0, 0, 0, 0, 0].map(v => v < 0 ? '#f43f5e' : (v > 0 ? '#1db954' : '#334155')),
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#fff', font: { family: 'Outfit', weight: '600' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateLassoPath(sliderIdx) {
+            const item = lassoPathData[sliderIdx];
+            if (!item || !lassoPathChartInstance) return;
+
+            let desc = `alpha = ${item.alpha}`;
+            if (item.alpha === 0.612) desc += ' (CV 最佳)';
+            if (item.alpha === 1.5) desc += ' (全數歸零)';
+            document.getElementById('lassoAlphaDisplay').innerText = desc;
+
+            const keys = ['Valence.', 'Speechiness.', 'Beats.Per.Minute', 'Energy', 'Danceability', 'Loudness..dB..', 'Liveness', 'Length.', 'Acousticness..'];
+            const vals = keys.map(k => item[k] || 0);
+
+            lassoPathChartInstance.data.datasets[0].data = vals;
+            lassoPathChartInstance.data.datasets[0].backgroundColor = vals.map(v => v < 0 ? '#f43f5e' : (v > 0 ? '#1db954' : '#334155'));
+            lassoPathChartInstance.update();
+        }
+
+        // 4. Songs Explorer
+        function initSongsExplorer() {
+            const genres = [...new Set(songsData.map(s => s.genre))].sort();
+            const genreSelect = document.getElementById('genreSelect');
+            genres.forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g;
+                opt.innerText = g;
+                genreSelect.appendChild(opt);
+            });
+
+            renderSongs(songsData);
+        }
+
+        function renderSongs(list) {
+            const tbody = document.getElementById('songsTableBody');
+            tbody.innerHTML = '';
+            document.getElementById('songCountText').innerText = list.length;
+
+            list.forEach(s => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="mono" style="color: var(--text-dim);">${s.id}</td>
+                    <td style="font-weight: 600;">${s.title}</td>
+                    <td style="color: var(--text-muted);">${s.artist}</td>
+                    <td><span class="tag-pill" style="background: rgba(255,255,255,0.06); font-size: 0.72rem;">${s.genre}</span></td>
+                    <td style="text-align: right; font-weight: 700; color: ${s.popularity >= 90 ? 'var(--spotify-green-light)' : '#fff'};" class="mono">${s.popularity}</td>
+                    <td style="text-align: right;" class="mono">${s.valence}</td>
+                    <td style="text-align: right;" class="mono">${s.speechiness}</td>
+                    <td style="text-align: right;" class="mono">${s.bpm}</td>
+                    <td style="text-align: center;">
+                        <button class="btn-load" onclick="loadSongToPredictor(${s.id})">導入預測器</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function filterSongs() {
+            const query = document.getElementById('songSearch').value.toLowerCase().trim();
+            const genre = document.getElementById('genreSelect').value;
+
+            const filtered = songsData.filter(s => {
+                const matchQuery = !query || s.title.toLowerCase().includes(query) || s.artist.toLowerCase().includes(query);
+                const matchGenre = !genre || s.genre === genre;
+                return matchQuery && matchGenre;
+            });
+
+            renderSongs(filtered);
+        }
+
+        function loadSongToPredictor(id) {
+            const s = songsData.find(x => x.id === id);
+            if (!s) return;
+
+            document.getElementById('input_valence').value = s.valence;
+            document.getElementById('input_speech').value = s.speechiness;
+            document.getElementById('input_liveness').value = s.liveness;
+            document.getElementById('input_bpm').value = s.bpm;
+            document.getElementById('input_energy').value = s.energy;
+            document.getElementById('input_dance').value = s.danceability;
+
+            updatePrediction();
+
+            // Smooth scroll to predictor
+            document.getElementById('predictor').scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
