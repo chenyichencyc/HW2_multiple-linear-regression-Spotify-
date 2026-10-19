@@ -12,19 +12,25 @@
 
 ## 🌐 線上互動展示儀表板 (Live Interactive Demo)
 
-本專案已部署於 GitHub Pages，提供動態下拉式選單與即時計算功能：
+本專案已部署於 GitHub Pages，整合 **Spotify 114k Tracks** 與 **50 Startups** 雙專案分析，提供全站頂部下拉式選單無縫切換：
 👉 **[點此造訪 GitHub Pages 線上儀表板](https://chenyichencyc.github.io/HW2_multiple-linear-regression-Spotify-/)**
 
 ### 網頁主要功能與架構：
-- **首頁即時呈現核心分析與預測器**：
+- **頂部全域專案導覽列 (Global Project Switcher)**：
+  - 支援以**下拉式選單**與**快捷按鈕**於兩大機器學習專案間無縫切換：
+    1. 🎵 **Spotify 全球音樂熱門度預測與特徵工程 (114,000 Tracks)**
+    2. 🏢 **50 Startups 創投利潤預測與特徵篩選 (50 家企業)**（連結自 [1019_50startup](https://github.com/chenyichencyc/1019_50startup)）
+  - 支援 URL Hash（`#spotify` 與 `#50startup`）與 `localStorage` 記憶最後瀏覽狀態。
+- **Spotify 專案分析核心功能**：
   - 📈 **特徵數量評估與最佳化 (Sweet Spot)**：提供互動式 Chart.js 折線圖（雙 Y 軸展示 RMSE 與 $R^2$）與 Matplotlib 原生 PNG 圖（`features_performance.png`、`features_table.png`）無縫切換，附完整 1~14 特徵評估指標數據表。
-  - 🎧 **Spotify 即時熱門度預測計算機**：支援調節演奏度 (Instrumentalness)、正向度 (Valence)、舞曲度 (Danceability)、口白度 (Speechiness)、能量與響度滑桿，即時利用多元迴歸方程式計算熱門度（Popularity 0~100）並同步繪製音訊風向雷達圖。
+  - 🎧 **Spotify 即時熱門度預測計算機**：支援調節演奏度 (Instrumentalness)、正向度 (Valence)、舞曲度 (Danceability)、口白度 (Speechiness)、能量與響度滑桿，即時利用多元迴歸方程式計算熱門度（Popularity 0~100）、**聲學爆紅潛力百分位 (Percentile)**，並同步繪製音訊風向雷達圖。
   - 🎵 **熱門名曲一鍵帶入**：可直接載入 *Sam Smith - Unholy*、*Quevedo - Bzrp Sessions #52*、*Manuel Turizo - La Bachata*、*David Guetta - I'm Good (Blue)* 等經典歌曲參數。
 - **三大特徵篩選方法深度分析（專屬下拉式選單切換）**：
   1. 🔬 **ANOVA F-test (Filter Method 過濾法)**：14 項音訊特徵之 F-Score 條形圖與 p-value 統計顯著性分析
   2. 🔄 **RFE 遞迴特徵消除 (Wrapper Method 包裝法)**：特徵淘汰輪次、保留排名與避開多重共線性說明
   3. 🎯 **Lasso L1 正則化 (Embedded Method 嵌入法)**：支援動態滑動調整 $\alpha$ 懲罰力度（0.001 ~ 1.5），動態展示特徵權重收縮過程，深入剖析為何 $\alpha=1.5$ 懲罰過大僅保留 `instrumentalness`，以及 `LassoCV` 尋獲的最佳 $\alpha \approx 0.0022$ 之稀疏化效果。
 - **代表性歌曲資料集檢視器**：精選跨 114 種曲風之代表性熱門曲目，支援即時搜尋與曲風過濾，點擊「導入預測器」可直接將該曲參數載入預測模型。
+- **50 Startups 創投獲利分析完整功能**：包含最佳 2 特徵（R&D + Marketing）雙變數利潤即時計算機、ANOVA/RFE/Lasso 三大篩選圖表及原始數據對照表。
 
 ---
 
