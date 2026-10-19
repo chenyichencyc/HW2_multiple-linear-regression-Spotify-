@@ -1445,6 +1445,136 @@
             color: var(--cyan-accent);
         }
     
+
+        /* ========================================================
+           PROMINENT PROJECT SWITCHER BANNER
+           ======================================================== */
+        .project-switcher-banner {
+            background: linear-gradient(135deg, rgba(29, 185, 84, 0.12) 0%, rgba(6, 182, 212, 0.08) 100%);
+            border: 1.5px solid rgba(29, 185, 84, 0.45);
+            border-radius: var(--radius-md);
+            padding: 1.25rem 1.6rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+        }
+
+        .project-switcher-banner.startup-banner {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(59, 130, 246, 0.08) 100%);
+            border-color: rgba(6, 182, 212, 0.5);
+        }
+
+        .banner-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .banner-badge-icon {
+            width: 46px;
+            height: 46px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #1db954, #06b6d4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 0 18px rgba(29, 185, 84, 0.35);
+            flex-shrink: 0;
+        }
+
+        .banner-badge-icon.startup-icon {
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            box-shadow: 0 0 18px rgba(6, 182, 212, 0.35);
+        }
+
+        .banner-heading {
+            font-size: 1.12rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .banner-subtext {
+            font-size: 0.86rem;
+            color: var(--text-muted);
+        }
+
+        .current-project-tag {
+            color: var(--spotify-green-light);
+            font-weight: 700;
+        }
+
+        .current-project-tag.startup-tag {
+            color: #38bdf8;
+        }
+
+        .banner-right {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            flex-wrap: wrap;
+        }
+
+        .banner-custom-dropdown {
+            background: #0f172a;
+            color: #38bdf8;
+            border: 2px solid #38bdf8;
+            border-radius: var(--radius-sm);
+            padding: 0.7rem 1.3rem;
+            font-family: inherit;
+            font-size: 0.98rem;
+            font-weight: 700;
+            cursor: pointer;
+            outline: none;
+            transition: var(--transition);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+            min-width: 290px;
+        }
+
+        .banner-custom-dropdown:hover, .banner-custom-dropdown:focus {
+            border-color: #38bdf8;
+            box-shadow: 0 0 30px rgba(56, 189, 248, 0.45);
+            color: #fff;
+        }
+
+        .banner-action-btn {
+            background: linear-gradient(135deg, #1db954, #10b981);
+            color: #000;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 0.7rem 1.3rem;
+            font-family: inherit;
+            font-size: 0.92rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: var(--transition);
+            box-shadow: 0 0 15px rgba(29, 185, 84, 0.3);
+            white-space: nowrap;
+        }
+
+        .banner-action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 25px rgba(29, 185, 84, 0.5);
+        }
+
+        .banner-action-btn.startup-btn {
+            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+        }
+
+        .banner-action-btn.startup-btn:hover {
+            box-shadow: 0 0 25px rgba(6, 182, 212, 0.5);
+        }
+    
 </style>
 </head>
 <body>
@@ -1457,26 +1587,40 @@
                 <div class="global-logo-badge">🔬</div>
                 <div class="global-titles">
                     <span class="global-title">ML & Feature Selection Hub</span>
-                    <span class="global-subtitle">人工智慧與資訊安全 · 多元線性迴歸專案實驗平台</span>
+                    <span class="global-subtitle">人工智慧與資訊安全 · 多元線性迴歸實驗平台</span>
                 </div>
             </div>
             
+            <!-- Prominent Project Switcher Dropdown in Top Nav -->
             <div class="global-switcher-group">
                 <label for="globalProjectSelector" class="global-switcher-label">
                     <span>切換分析專案：</span>
                 </label>
                 <div class="global-select-container">
                     <select id="globalProjectSelector" class="global-dropdown" onchange="switchProject(this.value)">
-                        <option value="spotify" selected>🎵 Spotify 音樂熱門度預測 (114,000 首 Tracks)</option>
-                        <option value="50startup">🏢 50 Startups 創投利潤預測 (50 家新創企業)</option>
+                        <option value="spotify" selected>🎵 1. Spotify 音樂熱門度預測 (114,000 首)</option>
+                        <option value="50startup">🏢 2. 50 Startups 創投利潤預測 (50 家企業)</option>
                     </select>
                     <span class="global-select-caret">▼</span>
                 </div>
                 <div class="global-segmented-buttons">
-                    <button type="button" id="btnProjectSpotify" class="global-pill active" onclick="switchProject('spotify')">🎵 Spotify (114k)</button>
+                    <button type="button" id="btnProjectSpotify" class="global-pill active" onclick="switchProject('spotify')">🎵 Spotify</button>
                     <button type="button" id="btnProjectStartup" class="global-pill" onclick="switchProject('50startup')">🏢 50 Startups</button>
                 </div>
             </div>
+
+            <!-- Contextual Quick Links -->
+            <ul class="nav-links" id="spotifyNavLinks">
+                <li><a href="#sweet-spot" class="nav-link">特徵數量評估</a></li>
+                <li><a href="#predictor" class="nav-link">熱門度預測器</a></li>
+                <li><a href="#methods" class="nav-link">特徵篩選方法</a></li>
+                <li><a href="#songs" class="nav-link">代表歌曲</a></li>
+            </ul>
+            <ul class="nav-links" id="startupNavLinks" style="display: none;">
+                <li><a href="#section_optimal_eval" class="nav-link">特徵數量評估</a></li>
+                <li><a href="#calcSection" class="nav-link">線上利潤預測</a></li>
+                <li><a href="#section_feature_methods" class="nav-link">三大特徵篩選</a></li>
+            </ul>
         </div>
     </nav>
     
@@ -1484,26 +1628,28 @@
          PROJECT 1: SPOTIFY 114K POPULARITY
          ========================================== -->
     <div id="project_spotify" class="project-page active">
-<!-- Navbar -->
-    <nav class="navbar">
-        <a href="#" class="nav-brand">
-            <div class="nav-logo">
-                <svg viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.503 17.306c-.218.358-.684.472-1.042.254-2.858-1.747-6.457-2.143-10.697-1.173-.409.094-.818-.163-.911-.571-.094-.409.163-.818.571-.911 4.643-1.06 8.626-.615 11.825 1.341.358.218.472.684.254 1.06zm1.47-3.267c-.275.446-.86.588-1.306.313-3.272-2.012-8.261-2.595-12.133-1.419-.502.153-1.036-.134-1.189-.636-.153-.502.134-1.036.636-1.189 4.417-1.341 9.919-.693 13.679 1.625.446.275.588.86.313 1.306zm.126-3.41c-3.924-2.33-10.388-2.544-14.135-1.406-.601.183-1.241-.161-1.424-.762-.183-.601.161-1.241.762-1.424 4.306-1.307 11.439-1.054 15.961 1.63.541.321.716 1.025.395 1.566-.321.541-1.025.716-1.566.395z"/></svg>
-            </div>
-            <div class="brand-text">
-                <h1>Spotify 114k Tracks ML Analysis</h1>
-                <span>Hugging Face Spotify Tracks Dataset · 多元回歸特徵工程</span>
-            </div>
-        </a>
-        <ul class="nav-links">
-            <li><a href="#sweet-spot" class="nav-link">特徵數量評估</a></li>
-            <li><a href="#predictor" class="nav-link">熱門度預測器</a></li>
-            <li><a href="#methods" class="nav-link">特徵篩選方法</a></li>
-            <li><a href="#songs" class="nav-link">代表性歌曲</a></li>
-        </ul>
-    </nav>
 
     <div class="container">
+
+        
+        <!-- Prominent In-Page Project Switcher Banner -->
+        <div class="project-switcher-banner">
+            <div class="banner-left">
+                <div class="banner-badge-icon">🔀</div>
+                <div>
+                    <div class="banner-heading">多元線性迴歸專案切換 (Project Switcher)</div>
+                    <div class="banner-subtext">當前專案：<span class="current-project-tag">🎵 Spotify 114,000 首音訊特徵與熱門度預測</span></div>
+                </div>
+            </div>
+            <div class="banner-right">
+                <label for="bannerSelectSpotify" style="font-size:0.86rem; font-weight:600; color:var(--text-muted);">下拉切換：</label>
+                <select id="bannerSelectSpotify" class="banner-custom-dropdown" onchange="switchProject(this.value)">
+                    <option value="spotify" selected>🎵 1. Spotify 全球音樂熱門度預測 (114,000 首)</option>
+                    <option value="50startup">🏢 2. 50 Startups 創投利潤預測分析 (50 家企業)</option>
+                </select>
+                <button type="button" class="banner-action-btn" onclick="switchProject('50startup')">切換至 50 Startups 🏢 ➔</button>
+            </div>
+        </div>
 
         <!-- Hero Header -->
         <header class="hero">
@@ -2149,7 +2295,27 @@
          ========================================== -->
     <div id="project_50startup" class="project-page">
         <div class="container">
-<header>
+
+        <!-- Prominent In-Page Project Switcher Banner -->
+        <div class="project-switcher-banner startup-banner">
+            <div class="banner-left">
+                <div class="banner-badge-icon startup-icon">🔀</div>
+                <div>
+                    <div class="banner-heading">多元線性迴歸專案切換 (Project Switcher)</div>
+                    <div class="banner-subtext">當前專案：<span class="current-project-tag startup-tag">🏢 50 Startups 創投利潤預測與特徵工程</span></div>
+                </div>
+            </div>
+            <div class="banner-right">
+                <label for="bannerSelectStartup" style="font-size:0.86rem; font-weight:600; color:var(--text-muted);">下拉切換：</label>
+                <select id="bannerSelectStartup" class="banner-custom-dropdown" onchange="switchProject(this.value)">
+                    <option value="spotify">🎵 1. Spotify 全球音樂熱門度預測 (114,000 首)</option>
+                    <option value="50startup" selected>🏢 2. 50 Startups 創投利潤預測分析 (50 家企業)</option>
+                </select>
+                <button type="button" class="banner-action-btn startup-btn" onclick="switchProject('spotify')">切換至 Spotify 音樂 🎵 ➔</button>
+            </div>
+        </div>
+
+        <header>
             <div class="badge-pill">
                 <span class="dot"></span>
                 Machine Learning & Feature Selection
@@ -4421,13 +4587,25 @@
             if (spotifyPage) spotifyPage.classList.toggle('active', isSpotify);
             if (startupPage) startupPage.classList.toggle('active', !isSpotify);
 
-            const selector = document.getElementById('globalProjectSelector');
-            if (selector && selector.value !== projectName) selector.value = projectName;
+            // Synchronize all dropdown selectors
+            const s1 = document.getElementById('globalProjectSelector');
+            const s2 = document.getElementById('bannerSelectSpotify');
+            const s3 = document.getElementById('bannerSelectStartup');
+            if (s1) s1.value = projectName;
+            if (s2) s2.value = projectName;
+            if (s3) s3.value = projectName;
 
+            // Synchronize buttons
             const btnSpotify = document.getElementById('btnProjectSpotify');
             const btnStartup = document.getElementById('btnProjectStartup');
             if (btnSpotify) btnSpotify.classList.toggle('active', isSpotify);
             if (btnStartup) btnStartup.classList.toggle('active', !isSpotify);
+
+            // Toggle contextual nav links in top bar
+            const spotNav = document.getElementById('spotifyNavLinks');
+            const startNav = document.getElementById('startupNavLinks');
+            if (spotNav) spotNav.style.display = isSpotify ? 'flex' : 'none';
+            if (startNav) startNav.style.display = isSpotify ? 'none' : 'flex';
 
             if (isSpotify) {
                 document.title = "Spotify 全球音樂熱門度預測與特徵工程 | ML Hub";
